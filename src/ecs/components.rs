@@ -317,7 +317,14 @@ impl CameraLookTarget {
     }
 }
 
-/// Состояние клавиш орбиты (Q/E/W/S), которое приложение обновляет из событий клавиатуры и передаёт в [`crate::ecs::systems::camera_keyboard_orbit_system`].
+/// Удержание **[** / **]** — вращение «корня сцены» вокруг мировой оси Y (см. [`crate::ecs::systems::render_mesh_system`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct KeyboardSceneRootKeys {
+    pub bracket_left: bool,
+    pub bracket_right: bool,
+}
+
+/// Состояние клавиш орбиты (A/D/W/S), которое приложение обновляет из событий клавиатуры и передаёт в [`crate::ecs::systems::camera_keyboard_orbit_system`].
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct KeyboardOrbitKeys {
     pub right: bool,
@@ -326,7 +333,7 @@ pub struct KeyboardOrbitKeys {
     pub down: bool,
 }
 
-/// Орбитальное управление камерой с клавиатуры: **Q/E** — вокруг цели по азимуту (ось Y), **W/S** — наклон вверх/вниз.
+/// Орбитальное управление камерой с клавиатуры: **A/D** — азимут вокруг цели, **W/S** — наклон.
 ///
 /// Ставьте на ту же сущность, что и [`Position`], [`Camera`], [`CameraLookTarget`]. Система
 /// [`crate::ecs::systems::camera_keyboard_orbit_system`] (до [`crate::ecs::systems::camera_look_at_system`])

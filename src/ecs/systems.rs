@@ -10,7 +10,7 @@ use crate::graphics::{
     camera_yaw_pitch_deg_from_look_direction, model_matrix, set_opaque_depth_blend,
     set_transparent_depth_blend, view_projection_matrix,
 };
-use cgmath::{InnerSpace, Vector3};
+use cgmath::{InnerSpace, Matrix4, Rad, Vector3, Vector4};
 use hecs::{Entity, World};
 
 /// Для сущностей с [`SpinAnimation`] + [`Rotation`] и `enabled == true` добавляет скорости к углам [`Rotation`].
@@ -218,7 +218,16 @@ impl LightUpload {
 /// выключенной записи в Z-буфер задний объект ошибочно рисуется поверх переднего.
 ///
 /// Источники [`Light`] в мире передаются во фрагментный шейдер (Blinn–Phong); сетка рисуется без учёта света.
-pub fn render_mesh_system(world: &mut World, shader: &ShaderProgram, aspect: f32) {
+///
+/// Меши умножаются слева на поворот `R_y(scene_root_yaw_deg)` вокруг начала координат: **объекты сцены** крутятся,
+/// позиции источников света в шейдере остаются в неподвижном мире.
+pub fn render_mesh_system(
+    world: &mut World,
+    shader: &ShaderProgram,
+    aspect: f32,
+    scene_root_yaw_deg: f32,
+) {
+    let scene_root = Matrix4::from_angle_y(Rad(scene_root_yaw_deg.to_radians()));
     let (vp, camera_eye) = if let Some((_, (pos, rot, cam))) =
         (&mut world.query::<(&Position, &Rotation, &Camera)>())
             .into_iter()
@@ -256,7 +265,8 @@ pub fn render_mesh_system(world: &mut World, shader: &ShaderProgram, aspect: f32
         if render.topology != MeshTopology::Lines {
             continue;
         }
-        let model = model_matrix(transform.position, rot.xyz, scale.xyz);
+        let model_local = model_matrix(transform.position, rot.xyz, scale.xyz);
+        let model = scene_root * model_local;
         let mvp = vp * model;
         shader.set_model_normal_mvp(&model, &mvp);
         render.mesh.draw(render.topology);
@@ -273,7 +283,8 @@ pub fn render_mesh_system(world: &mut World, shader: &ShaderProgram, aspect: f32
         if !mat.is_visible() || mat.has_transparency() {
             continue;
         }
-        let model = model_matrix(transform.position, rot.xyz, scale.xyz);
+        let model_local = model_matrix(transform.position, rot.xyz, scale.xyz);
+        let model = scene_root * model_local;
         let mvp = vp * model;
         shader.set_model_normal_mvp(&model, &mvp);
         shader.set_material_rgba(mat.color.r, mat.color.g, mat.color.b, mat.opacity);
@@ -302,7 +313,9 @@ pub fn render_mesh_system(world: &mut World, shader: &ShaderProgram, aspect: f32
                 if !mat.is_visible() || !mat.has_transparency() {
                     return None;
                 }
-                let d = pos.position - camera_eye;
+                let p = pos.position;
+                let world_center = (scene_root * Vector4::new(p.x, p.y, p.z, 1.0)).truncate();
+                let d = world_center - camera_eye;
                 let dist_sq = d.x * d.x + d.y * d.y + d.z * d.z;
                 Some((dist_sq, e))
             })
@@ -319,7 +332,8 @@ pub fn render_mesh_system(world: &mut World, shader: &ShaderProgram, aspect: f32
         let Some((transform, rot, scale, render, mat)) = q.get() else {
             continue;
         };
-        let model = model_matrix(transform.position, rot.xyz, scale.xyz);
+        let model_local = model_matrix(transform.position, rot.xyz, scale.xyz);
+        let model = scene_root * model_local;
         let mvp = vp * model;
         shader.set_model_normal_mvp(&model, &mvp);
         shader.set_material_rgba(mat.color.r, mat.color.g, mat.color.b, mat.opacity);

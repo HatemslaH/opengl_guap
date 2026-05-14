@@ -3,16 +3,16 @@
 //! Сюда не добавляют компоненты сущностей — только события окна и порядок систем.
 
 use crate::ecs::{
-    KeyboardOrbitKeys, camera_keyboard_orbit_system, camera_look_at_system, render_mesh_system,
-    spin_animation_system,
+    KeyboardOrbitKeys, KeyboardSceneRootKeys, camera_keyboard_orbit_system, camera_look_at_system,
+    render_mesh_system, spin_animation_system,
 };
-use crate::graphics::{ShaderProgram, enable_depth_test};
+use crate::graphics::{FpsOverlay, ShaderProgram, enable_depth_test};
 use crate::scene::Scene;
 use glutin::config::ConfigTemplateBuilder;
 use glutin::context::{ContextAttributesBuilder, PossiblyCurrentContext};
 use glutin::display::GetGlDisplay;
 use glutin::prelude::*;
-use glutin::surface::{Surface, SurfaceAttributesBuilder, WindowSurface};
+use glutin::surface::{Surface, SurfaceAttributesBuilder, SwapInterval, WindowSurface};
 use glutin_winit::DisplayBuilder;
 use raw_window_handle::HasWindowHandle;
 use std::ffi::CString;
@@ -29,11 +29,14 @@ pub struct GlutinApp {
     gl_context: Option<PossiblyCurrentContext>,
     gl_surface: Option<Surface<WindowSurface>>,
     shader: Option<ShaderProgram>,
+    fps_overlay: Option<FpsOverlay>,
     scene: Option<Scene>,
-    start_time: Instant,
-    /// Время прошлого кадра (сек), для `dt` анимации.
-    prev_elapsed_secs: Option<f32>,
+    /// Момент конца предыдущего кадра (для `dt` анимации и FPS).
+    last_frame_instant: Option<Instant>,
     orbit_keys: KeyboardOrbitKeys,
+    scene_keys: KeyboardSceneRootKeys,
+    /// Поворот всех мешей вокруг мировой оси Y (градусы); источники света в мире неподвижны.
+    scene_root_yaw_deg: f32,
 }
 
 impl Default for GlutinApp {
@@ -49,10 +52,12 @@ impl GlutinApp {
             gl_context: None,
             gl_surface: None,
             shader: None,
+            fps_overlay: None,
             scene: None,
-            start_time: Instant::now(),
-            prev_elapsed_secs: None,
+            last_frame_instant: None,
             orbit_keys: KeyboardOrbitKeys::default(),
+            scene_keys: KeyboardSceneRootKeys::default(),
+            scene_root_yaw_deg: 0.0,
         }
     }
 }
@@ -106,6 +111,12 @@ impl ApplicationHandler for GlutinApp {
             .make_current(&gl_surface)
             .expect("не удалось сделать контекст текущим");
 
+        if let Err(e) = gl_surface.set_swap_interval(&gl_context, SwapInterval::DontWait) {
+            eprintln!(
+                "Не удалось отключить V-Sync: {e:?}. Счётчик FPS будет около частоты монитора (~144 Гц)."
+            );
+        }
+
         gl::load_with(|s| {
             let s = CString::new(s).expect("имя функции GL без внутреннего NUL");
             display.get_proc_address(&s)
@@ -114,11 +125,13 @@ impl ApplicationHandler for GlutinApp {
         let shader = ShaderProgram::new_colored_mesh();
         enable_depth_test();
         let scene = Scene::with_demo();
+        let fps_overlay = FpsOverlay::new();
 
         self.gl_context = Some(gl_context);
         self.gl_surface = Some(gl_surface);
         self.window = Some(window);
         self.shader = Some(shader);
+        self.fps_overlay = Some(fps_overlay);
         self.scene = Some(scene);
 
         unsafe {
@@ -131,7 +144,13 @@ impl ApplicationHandler for GlutinApp {
             WindowEvent::CloseRequested => event_loop.exit(),
 
             WindowEvent::RedrawRequested => {
-                let elapsed = self.start_time.elapsed().as_secs_f32();
+                let now = Instant::now();
+                let dt = self
+                    .last_frame_instant
+                    .map(|t| now.saturating_duration_since(t).as_secs_f32())
+                    .unwrap_or(0.0)
+                    .clamp(0.0, 0.25);
+                self.last_frame_instant = Some(now);
 
                 let (w_px, h_px) = self
                     .window
@@ -143,21 +162,28 @@ impl ApplicationHandler for GlutinApp {
                     .unwrap_or((800, 600));
                 let aspect = w_px as f32 / h_px as f32;
 
-                let prev = self.prev_elapsed_secs.unwrap_or(elapsed);
-                let dt = (elapsed - prev).clamp(0.0, 0.05);
-                self.prev_elapsed_secs = Some(elapsed);
-
                 if let (Some(shader), Some(scene)) = (&self.shader, &mut self.scene) {
                     spin_animation_system(&mut scene.world, dt);
                     camera_keyboard_orbit_system(&mut scene.world, &self.orbit_keys, dt);
                     camera_look_at_system(&mut scene.world);
+
+                    const SCENE_YAW_DEG_PER_SEC: f32 = 52.0;
+                    if self.scene_keys.bracket_left {
+                        self.scene_root_yaw_deg -= SCENE_YAW_DEG_PER_SEC * dt;
+                    }
+                    if self.scene_keys.bracket_right {
+                        self.scene_root_yaw_deg += SCENE_YAW_DEG_PER_SEC * dt;
+                    }
 
                     unsafe {
                         gl::ClearColor(0.1, 0.1, 0.15, 1.0);
                         gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
                     }
 
-                    render_mesh_system(&mut scene.world, shader, aspect);
+                    render_mesh_system(&mut scene.world, shader, aspect, self.scene_root_yaw_deg);
+                    if let Some(fps) = self.fps_overlay.as_mut() {
+                        fps.draw(w_px, h_px, dt);
+                    }
                 }
 
                 if let (Some(ctx), Some(surface)) = (&self.gl_context, &self.gl_surface) {
@@ -171,6 +197,8 @@ impl ApplicationHandler for GlutinApp {
             WindowEvent::Focused(focused) => {
                 if !focused {
                     self.orbit_keys = KeyboardOrbitKeys::default();
+                    self.scene_keys = KeyboardSceneRootKeys::default();
+                    self.last_frame_instant = None;
                 }
             }
 
@@ -182,6 +210,8 @@ impl ApplicationHandler for GlutinApp {
                         KeyCode::KeyA => self.orbit_keys.left = pressed,
                         KeyCode::KeyW => self.orbit_keys.up = pressed,
                         KeyCode::KeyS => self.orbit_keys.down = pressed,
+                        KeyCode::BracketLeft => self.scene_keys.bracket_left = pressed,
+                        KeyCode::BracketRight => self.scene_keys.bracket_right = pressed,
                         _ => {}
                     }
                 }

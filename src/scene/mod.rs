@@ -1,14 +1,18 @@
 //! Сцена на ECS ([`hecs::World`]): сетка, кубы и другие сущности как наборы компонентов.
 //!
 //! Рендер и анимация — в [`crate::ecs::systems`], не здесь.
+//!
+//! Демо [`Scene::with_demo`]: три разноцветных точечных света, несколько кубов с одним альбедо и разными
+//! [`SurfaceLighting`]; вращение группы мешей вокруг оси Y — клавиши **[** / **]** (обработка в [`GlutinApp`](crate::app::glutin_app::GlutinApp)).
 
 pub mod cube;
 pub mod grid;
 pub mod spawn;
 
 pub use crate::ecs::{
-    Camera, CameraKeyboardOrbit, CameraLookTarget, Color, KeyboardOrbitKeys, Light, LightKind,
-    Material, Position, RenderMesh, Rotation, Scale, SpinAnimation, SurfaceLighting,
+    Camera, CameraKeyboardOrbit, CameraLookTarget, Color, KeyboardOrbitKeys, KeyboardSceneRootKeys,
+    Light, LightKind, Material, Position, RenderMesh, Rotation, Scale, SpinAnimation,
+    SurfaceLighting,
 };
 pub use spawn::{
     spawn_camera, spawn_camera_with_look, spawn_camera_with_look_and_keyboard_orbit,
@@ -85,51 +89,114 @@ impl Scene {
     pub fn with_demo() -> Self {
         let mut s = Self::new();
         spawn_coordinate_grid(&mut s.world, 8.0, 1.0);
-        spawn_directional_light(
+
+        // Три точечных источника: разные позиции и цвета.
+        spawn_point_light(
             &mut s.world,
+            Vector3::new(3.0, 2.4, 1.2),
             Light::new(
-                LightKind::directional_toward_light(Vector3::new(0.4, 1.0, 0.35)),
-                Color::from_rgb8(255, 252, 235),
-                0.85,
+                LightKind::point_default_attenuation(),
+                Color::from_rgb8(255, 195, 150),
+                1.25,
             ),
         );
         spawn_point_light(
             &mut s.world,
-            Vector3::new(0.0, 1.0, 0.0),
+            Vector3::new(-2.8, 1.3, -0.8),
             Light::new(
                 LightKind::point_default_attenuation(),
-                Color::from_rgb8(152, 50, 51),
-                1.15,
+                Color::from_rgb8(110, 200, 255),
+                1.1,
             ),
         );
+        spawn_point_light(
+            &mut s.world,
+            Vector3::new(0.2, 0.9, -3.2),
+            Light::new(
+                LightKind::point_default_attenuation(),
+                Color::from_rgb8(210, 130, 255),
+                1.0,
+            ),
+        );
+
+        let albedo = Color::from_rgb8(208, 208, 218);
+
+        let surf_gloss = SurfaceLighting {
+            ambient: 0.1,
+            diffuse: 0.92,
+            specular_color: Color::new(1.0, 1.0, 1.0),
+            shininess: 140.0,
+        };
+        let surf_matte = SurfaceLighting {
+            ambient: 0.26,
+            diffuse: 0.52,
+            specular_color: Color::new(0.7, 0.72, 0.75),
+            shininess: 14.0,
+        };
+        let surf_metal = SurfaceLighting {
+            ambient: 0.09,
+            diffuse: 0.58,
+            specular_color: Color::new(0.82, 0.88, 1.0),
+            shininess: 88.0,
+        };
+        let surf_plastic = SurfaceLighting {
+            ambient: 0.15,
+            diffuse: 0.85,
+            specular_color: Color::new(1.0, 0.96, 0.88),
+            shininess: 42.0,
+        };
+        let surf_soft = SurfaceLighting {
+            ambient: 0.2,
+            diffuse: 0.68,
+            specular_color: Color::new(0.92, 0.98, 1.0),
+            shininess: 28.0,
+        };
+
         let cube = spawn_cube(
             &mut s.world,
-            Vector3::new(0.0, 0.0, 0.0),
-            Some(Rotation::new(0.0, 0.0, 0.0)),
-            Some(Scale::new(1.0, 2.0, 1.0)),
+            Vector3::new(0.0, 0.35, 0.0),
+            None,
+            Some(Scale::new(1.15, 0.7, 1.15)),
             SpinAnimation::disabled(),
-            Some(Material::new(Color::from_rgb8(120, 180, 255), 1.0)),
+            Some(Material::opaque(albedo).with_surface(surf_gloss)),
         );
-        let _cube1 = spawn_cube(
+        let _ = spawn_cube(
             &mut s.world,
-            Vector3::new(1.5, 0.0, 0.0),
+            Vector3::new(2.0, 0.25, 0.6),
             None,
-            None,
+            Some(Scale::new(0.55, 0.95, 0.55)),
             SpinAnimation::disabled(),
-            Some(Material::new(Color::from_rgb8(152, 50, 51), 1.0)),
+            Some(Material::opaque(albedo).with_surface(surf_matte)),
         );
-        let _cube2 = spawn_cube(
+        let _ = spawn_cube(
             &mut s.world,
-            Vector3::new(-1.5, 0.0, 0.0),
+            Vector3::new(-1.7, 0.28, 0.9),
             None,
-            None,
+            Some(Scale::new(0.75, 0.45, 0.9)),
             SpinAnimation::disabled(),
-            Some(Material::new(Color::from_rgb8(56, 19, 64), 1.0)),
+            Some(Material::opaque(albedo).with_surface(surf_metal)),
         );
+        let _ = spawn_cube(
+            &mut s.world,
+            Vector3::new(0.6, 0.22, -2.1),
+            None,
+            Some(Scale::new(0.9, 0.55, 0.65)),
+            SpinAnimation::disabled(),
+            Some(Material::opaque(albedo).with_surface(surf_plastic)),
+        );
+        let _ = spawn_cube(
+            &mut s.world,
+            Vector3::new(-1.2, 0.32, -1.6),
+            None,
+            Some(Scale::new(0.5, 0.85, 0.5)),
+            SpinAnimation::disabled(),
+            Some(Material::opaque(albedo).with_surface(surf_soft)),
+        );
+
         spawn_camera_with_look_and_keyboard_orbit(
             &mut s.world,
-            Vector3::new(-2.0, 2.0, 2.8),
-            Camera::new(90.0, 0.1, 100.0),
+            Vector3::new(-2.2, 2.4, 3.0),
+            Camera::new(88.0, 0.1, 100.0),
             CameraLookTarget::Entity(cube),
             CameraKeyboardOrbit::default(),
         );
