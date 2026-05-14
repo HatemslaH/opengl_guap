@@ -2,17 +2,20 @@
 
 use super::cube::build_cube_vertex_data;
 use super::grid::build_grid_vertices;
-use crate::ecs::{Camera, CameraLookTarget, Light, Material, Position, RenderMesh, SpinAnimation};
+use crate::ecs::{
+    Camera, CameraLookTarget, Light, Material, Position, RenderMesh, Rotation, Scale, SpinAnimation,
+};
 use crate::graphics::{Mesh, MeshTopology};
 use cgmath::Vector3;
 use hecs::{Entity, World};
 
-/// Камера: только [`Transform`] (глаз) и [`Camera`] (yaw/pitch в градусах, FOV, near/far). Без меша — не рисуется.
+/// Камера: [`Position`] (глаз), [`Rotation`] (ориентация в градусах, поле `xyz`), [`Camera`] (FOV, near/far). Без меша — не рисуется.
 pub fn spawn_camera(world: &mut World, translation: Vector3<f32>, camera: Camera) {
     world.spawn((
         Position {
             position: translation,
         },
+        Rotation::default(),
         camera,
     ));
 }
@@ -28,6 +31,7 @@ pub fn spawn_camera_with_look(
         Position {
             position: translation,
         },
+        Rotation::default(),
         camera,
         look,
     ));
@@ -53,11 +57,12 @@ pub fn spawn_coordinate_grid(world: &mut World, half_extent: f32, step: f32) {
     let mesh = Mesh::new_interleaved_pos3_color3(&data, verts);
     world.spawn((
         Position::default(),
+        Rotation::default(),
+        Scale::default(),
         RenderMesh {
             mesh,
             topology: MeshTopology::Lines,
         },
-        SpinAnimation::disabled(),
     ));
 }
 
@@ -67,19 +72,23 @@ pub fn spawn_coordinate_grid(world: &mut World, half_extent: f32, step: f32) {
 pub fn spawn_cube(
     world: &mut World,
     position: Vector3<f32>,
+    rotation: Option<Rotation>,
+    scale: Option<Scale>,
     spin: SpinAnimation,
     material: Option<Material>,
 ) -> Entity {
     let data = build_cube_vertex_data();
     let mesh = Mesh::new_interleaved_pos3_color3_normal3(&data, 36);
     let pos = Position { position };
+    let rot = rotation.unwrap_or(Rotation::default());
+    let scale = scale.unwrap_or(Scale::default());
     let render = RenderMesh {
         mesh,
         topology: MeshTopology::Triangles,
     };
     if let Some(m) = material {
-        world.spawn((pos, render, spin, m))
+        world.spawn((pos, rot, scale, render, spin, m))
     } else {
-        world.spawn((pos, render, spin))
+        world.spawn((pos, rot, scale, render, spin))
     }
 }

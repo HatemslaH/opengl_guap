@@ -7,8 +7,8 @@ pub mod grid;
 pub mod spawn;
 
 pub use crate::ecs::{
-    Camera, CameraLookTarget, Color, Light, LightKind, Material, Position, RenderMesh,
-    SpinAnimation, SurfaceLighting,
+    Camera, CameraLookTarget, Color, Light, LightKind, Material, Position, RenderMesh, Rotation,
+    Scale, SpinAnimation, SurfaceLighting,
 };
 pub use spawn::{
     spawn_camera, spawn_camera_with_look, spawn_coordinate_grid, spawn_cube,
@@ -59,7 +59,14 @@ impl CubeSpawn {
 
     /// Зарегистрировать сущность в мире.
     pub fn spawn(self, scene: &mut Scene) -> Entity {
-        spawn::spawn_cube(&mut scene.world, self.translation, self.spin, self.material)
+        spawn::spawn_cube(
+            &mut scene.world,
+            self.translation,
+            None,
+            None,
+            self.spin,
+            self.material,
+        )
     }
 }
 
@@ -98,19 +105,31 @@ impl Scene {
         let cube = spawn_cube(
             &mut s.world,
             Vector3::new(0.0, 0.0, 0.0),
+            Some(Rotation::new(0.0, 0.0, 0.0)),
+            Some(Scale::new(1.0, 2.0, 1.0)),
             SpinAnimation::disabled(),
             Some(Material::new(Color::from_rgb8(120, 180, 255), 1.0)),
         );
         let _cube1 = spawn_cube(
             &mut s.world,
-            Vector3::new(1.0, -0.5, -1.0),
+            Vector3::new(1.5, 0.0, 0.0),
+            None,
+            None,
             SpinAnimation::disabled(),
-            Some(Material::new(Color::from_rgb8(152, 50, 51), 0.5)),
+            Some(Material::new(Color::from_rgb8(152, 50, 51), 1.0)),
+        );
+        let _cube2 = spawn_cube(
+            &mut s.world,
+            Vector3::new(-1.5, 0.0, 0.0),
+            None,
+            None,
+            SpinAnimation::disabled(),
+            Some(Material::new(Color::from_rgb8(56, 19, 64), 1.0)),
         );
         spawn_camera_with_look(
             &mut s.world,
             Vector3::new(-2.0, 2.0, 2.8),
-            Camera::new(0.0, 0.0, 90.0, 0.1, 100.0),
+            Camera::new(90.0, 0.1, 100.0),
             CameraLookTarget::Entity(cube),
         );
         s

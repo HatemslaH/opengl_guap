@@ -1,4 +1,4 @@
-//! Компоненты ECS: положение, опциональное вращение, GPU-меш.
+//! Компоненты ECS: положение, ориентация, масштаб, GPU-меш.
 
 use crate::graphics::{Mesh, MeshTopology};
 use cgmath::Vector3;
@@ -18,18 +18,62 @@ impl Default for Position {
     }
 }
 
-/// Вращение вокруг Y и X с интеграцией фаз; можно **отключить** (`enabled = false`) — тогда модель не крутится.
+/// Ориентация в **градусах** по осям X, Y, Z (как у [`Scale::xyz`] — три компонента в одном поле).
 ///
-/// Подключайте к любой сущности с [`RenderMesh`]: система [`crate::ecs::systems::spin_animation_system`] обновляет только сущности с этим компонентом.
+/// Порядок в [`crate::graphics::math::model_matrix`]: **Y**, затем **X**, затем **Z** (при нулевом Z совпадает с прежним yaw/pitch).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Rotation {
+    pub xyz: Vector3<f32>,
+}
+
+impl Default for Rotation {
+    fn default() -> Self {
+        Self {
+            xyz: Vector3::new(0.0, 0.0, 0.0),
+        }
+    }
+}
+
+impl Rotation {
+    pub fn new(x: f32, y: f32, z: f32) -> Self {
+        Self {
+            xyz: Vector3::new(x, y, z),
+        }
+    }
+}
+
+/// Масштаб по локальным осям X, Y, Z. `0` — нулевой размер по этой оси; отрицательные значения отражают геометрию.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Scale {
+    pub xyz: Vector3<f32>,
+}
+
+impl Default for Scale {
+    fn default() -> Self {
+        Self {
+            xyz: Vector3::new(1.0, 1.0, 1.0),
+        }
+    }
+}
+
+impl Scale {
+    pub fn new(x: f32, y: f32, z: f32) -> Self {
+        Self {
+            xyz: Vector3::new(x, y, z),
+        }
+    }
+}
+
+/// Скорости вращения для [`Rotation`]; при `enabled == false` углы не меняются.
+///
+/// Ставьте на ту же сущность, что и [`Rotation`]: [`crate::ecs::systems::spin_animation_system`] добавляет скорости к [`Rotation`] каждый кадр.
 #[derive(Clone, Debug)]
 pub struct SpinAnimation {
     pub enabled: bool,
-    /// Рад/сек вокруг мировой оси Y.
+    /// Градусов в секунду вокруг мировой оси Y.
     pub velocity_y: f32,
-    /// Рад/сек вокруг локальной X после поворота Y (как в старом демо).
+    /// Градусов в секунду вокруг локальной X после поворота Y.
     pub velocity_x: f32,
-    pub phase_y: f32,
-    pub phase_x: f32,
 }
 
 impl SpinAnimation {
@@ -38,19 +82,15 @@ impl SpinAnimation {
             enabled: false,
             velocity_y: 0.0,
             velocity_x: 0.0,
-            phase_y: 0.0,
-            phase_x: 0.0,
         }
     }
 
-    /// То же вращение, что было «зашито» в MVP раньше.
+    /// То же визуальное вращение, что в раннем демо (0.7 и 0.35 рад/с), выраженное в градусах в секунду.
     pub fn demo_orbit() -> Self {
         Self {
             enabled: true,
-            velocity_y: 0.7,
-            velocity_x: 0.35,
-            phase_y: 0.0,
-            phase_x: 0.0,
+            velocity_y: 0.7_f32.to_degrees(),
+            velocity_x: 0.35_f32.to_degrees(),
         }
     }
 }
@@ -217,20 +257,17 @@ impl Material {
     }
 }
 
-/// Камера на сцене: позиция — в [`Position`], здесь ориентация и проекция.
+/// Камера на сцене: позиция — в [`Position`], направление взгляда — в [`Rotation`], здесь только проекция.
 ///
-/// `yaw_deg` и `pitch_deg` — в **градусах**: горизонтальный поворот вокруг Y и наклон вверх/вниз.
-/// Направление взгляда при `(0°, 0°)` совпадает с прежней камерой «с +Z на центр».
+/// Направление взгляда при [`Rotation::default`] (`xyz = 0`) совпадает с прежней камерой «с +Z на центр».
 ///
 /// Если на ту же сущность добавлен [`CameraLookTarget`], [`crate::ecs::systems::camera_look_at_system`]
-/// каждый кадр перезаписывает эти углы под цель.
+/// каждый кадр перезаписывает [`Rotation`] под цель.
 ///
 /// Если в мире несколько сущностей с `Camera`, [`crate::ecs::systems::render_mesh_system`] берёт **первую**
 /// из обхода запроса — держите одну активную камеру или явно порядок спавна.
 #[derive(Clone, Debug)]
 pub struct Camera {
-    pub yaw_deg: f32,
-    pub pitch_deg: f32,
     /// Вертикальный угол обзора в градусах.
     pub fovy_deg: f32,
     pub z_near: f32,
@@ -240,8 +277,6 @@ pub struct Camera {
 impl Default for Camera {
     fn default() -> Self {
         Self {
-            yaw_deg: 0.0,
-            pitch_deg: 0.0,
             fovy_deg: 45.0,
             z_near: 0.1,
             z_far: 100.0,
@@ -250,10 +285,8 @@ impl Default for Camera {
 }
 
 impl Camera {
-    pub fn new(yaw_deg: f32, pitch_deg: f32, fovy_deg: f32, z_near: f32, z_far: f32) -> Self {
+    pub fn new(fovy_deg: f32, z_near: f32, z_far: f32) -> Self {
         Self {
-            yaw_deg,
-            pitch_deg,
             fovy_deg,
             z_near,
             z_far,
@@ -261,9 +294,9 @@ impl Camera {
     }
 }
 
-/// Цель взгляда для камеры: положите на ту же сущность, что и [`Camera`] + [`Position`].
-/// Система [`crate::ecs::systems::camera_look_at_system`] каждый кадр перезаписывает `yaw_deg` / `pitch_deg`
-/// у [`Camera`], чтобы смотреть на точку или на другую сущность с [`Position`].
+/// Цель взгляда для камеры: положите на ту же сущность, что и [`Camera`] + [`Position`] + [`Rotation`].
+/// Система [`crate::ecs::systems::camera_look_at_system`] каждый кадр перезаписывает [`Rotation`],
+/// чтобы смотреть на точку или на другую сущность с [`Position`].
 ///
 /// Если цель — [`CameraLookTarget::Entity`] и сущность уже не в мире, углы не меняются.
 #[derive(Clone, Debug)]

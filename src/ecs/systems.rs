@@ -1,7 +1,8 @@
 //! Системы ECS: анимация вращения и отрисовка мешей.
 
 use crate::ecs::components::{
-    Camera, CameraLookTarget, Light, LightKind, Material, Position, RenderMesh, SpinAnimation,
+    Camera, CameraLookTarget, Light, LightKind, Material, Position, RenderMesh, Rotation, Scale,
+    SpinAnimation,
 };
 use crate::graphics::{
     MAX_DIRECTIONAL_LIGHTS, MAX_POINT_LIGHTS, MeshTopology, ShaderProgram,
@@ -11,15 +12,15 @@ use crate::graphics::{
 use cgmath::Vector3;
 use hecs::{Entity, World};
 
-/// Обновляет фазы [`SpinAnimation`] для сущностей, у которых `enabled == true`.
+/// Для сущностей с [`SpinAnimation`] + [`Rotation`] и `enabled == true` добавляет скорости к углам [`Rotation`].
 pub fn spin_animation_system(world: &mut World, dt: f32) {
     if dt <= 0.0 {
         return;
     }
-    for (_, spin) in world.query_mut::<&mut SpinAnimation>() {
+    for (_, (spin, rot)) in world.query_mut::<(&SpinAnimation, &mut Rotation)>() {
         if spin.enabled {
-            spin.phase_y += spin.velocity_y * dt;
-            spin.phase_x += spin.velocity_x * dt;
+            rot.xyz.y += spin.velocity_y * dt;
+            rot.xyz.x += spin.velocity_x * dt;
         }
     }
 }
@@ -45,9 +46,10 @@ pub fn camera_look_at_system(world: &mut World) {
         let Some((yaw, pitch)) = camera_yaw_pitch_deg_from_look_direction(dir) else {
             continue;
         };
-        if let Ok(mut cam) = world.get::<&mut Camera>(camera_e) {
-            cam.yaw_deg = yaw;
-            cam.pitch_deg = pitch;
+        if let Ok(mut rot) = world.get::<&mut Rotation>(camera_e) {
+            rot.xyz.x = pitch;
+            rot.xyz.y = yaw;
+            rot.xyz.z = 0.0;
         }
     }
 }
@@ -129,30 +131,30 @@ impl LightUpload {
     }
 }
 
-/// Рисует сущности с [`Position`] + [`RenderMesh`] + [`SpinAnimation`].
+/// Рисует сущности с [`Position`] + [`Rotation`] + [`Scale`] + [`RenderMesh`].
 ///
 /// - **Линии** — только цвет вершины (сетка), без материала.
 /// - **Треугольники** — только если есть [`Material`]; без материала меш не рисуется.
 /// - Непрозрачные треугольники (`opacity ≈ 1`) — без смешивания и с записью в Z-буфер;
 ///   полупрозрачные — отдельный проход с `GL_BLEND` и без записи в глубину.
 ///
-/// Матрица вида×проекция — с первой сущности [`Position`] + [`Camera`]; если камеры нет — [`view_projection_matrix`].
+/// Матрица вида×проекция — с первой сущности [`Position`] + [`Rotation`] + [`Camera`]; если камеры нет — [`view_projection_matrix`].
 ///
 /// Полупрозрачные треугольники сортируются **от дальнего к ближнему** к камере (painter's algorithm): иначе при
 /// выключенной записи в Z-буфер задний объект ошибочно рисуется поверх переднего.
 ///
 /// Источники [`Light`] в мире передаются во фрагментный шейдер (Blinn–Phong); сетка рисуется без учёта света.
 pub fn render_mesh_system(world: &mut World, shader: &ShaderProgram, aspect: f32) {
-    let (vp, camera_eye) = if let Some((_, (pos, cam))) = (&mut world
-        .query::<(&Position, &Camera)>())
-        .into_iter()
-        .next()
+    let (vp, camera_eye) = if let Some((_, (pos, rot, cam))) =
+        (&mut world.query::<(&Position, &Rotation, &Camera)>())
+            .into_iter()
+            .next()
     {
         (
             camera_view_projection_matrix(
                 pos.position,
-                cam.yaw_deg.to_radians(),
-                cam.pitch_deg.to_radians(),
+                rot.xyz.y.to_radians(),
+                rot.xyz.x.to_radians(),
                 cam.fovy_deg,
                 aspect,
                 cam.z_near,
@@ -174,18 +176,13 @@ pub fn render_mesh_system(world: &mut World, shader: &ShaderProgram, aspect: f32
 
     // --- Линии: вершинный цвет, без материала ---
     shader.set_vertex_color_mode(true);
-    for (_, (transform, render, spin)) in
-        &mut world.query::<(&Position, &RenderMesh, &SpinAnimation)>()
+    for (_, (transform, rot, scale, render)) in
+        &mut world.query::<(&Position, &Rotation, &Scale, &RenderMesh)>()
     {
         if render.topology != MeshTopology::Lines {
             continue;
         }
-        let (yaw, pitch) = if spin.enabled {
-            (spin.phase_y, spin.phase_x)
-        } else {
-            (0.0, 0.0)
-        };
-        let model = model_matrix(transform.position, yaw, pitch);
+        let model = model_matrix(transform.position, rot.xyz, scale.xyz);
         let mvp = vp * model;
         shader.set_model_normal_mvp(&model, &mvp);
         render.mesh.draw(render.topology);
@@ -193,8 +190,8 @@ pub fn render_mesh_system(world: &mut World, shader: &ShaderProgram, aspect: f32
 
     // --- Непрозрачные треугольники (материал) ---
     shader.set_vertex_color_mode(false);
-    for (_, (transform, render, spin, mat)) in
-        &mut world.query::<(&Position, &RenderMesh, &SpinAnimation, &Material)>()
+    for (_, (transform, rot, scale, render, mat)) in
+        &mut world.query::<(&Position, &Rotation, &Scale, &RenderMesh, &Material)>()
     {
         if render.topology != MeshTopology::Triangles {
             continue;
@@ -202,12 +199,7 @@ pub fn render_mesh_system(world: &mut World, shader: &ShaderProgram, aspect: f32
         if !mat.is_visible() || mat.has_transparency() {
             continue;
         }
-        let (yaw, pitch) = if spin.enabled {
-            (spin.phase_y, spin.phase_x)
-        } else {
-            (0.0, 0.0)
-        };
-        let model = model_matrix(transform.position, yaw, pitch);
+        let model = model_matrix(transform.position, rot.xyz, scale.xyz);
         let mvp = vp * model;
         shader.set_model_normal_mvp(&model, &mvp);
         shader.set_material_rgba(mat.color.r, mat.color.g, mat.color.b, mat.opacity);
@@ -227,9 +219,9 @@ pub fn render_mesh_system(world: &mut World, shader: &ShaderProgram, aspect: f32
     shader.set_vertex_color_mode(false);
 
     let mut transparent: Vec<(f32, Entity)> =
-        (&mut world.query::<(&Position, &RenderMesh, &SpinAnimation, &Material)>())
+        (&mut world.query::<(&Position, &Rotation, &Scale, &RenderMesh, &Material)>())
             .into_iter()
-            .filter_map(|(e, (pos, render, _spin, mat))| {
+            .filter_map(|(e, (pos, _rot, _scale, render, mat))| {
                 if render.topology != MeshTopology::Triangles {
                     return None;
                 }
@@ -245,19 +237,15 @@ pub fn render_mesh_system(world: &mut World, shader: &ShaderProgram, aspect: f32
     transparent.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
 
     for (_, e) in transparent {
-        let Ok(mut q) = world.query_one::<(&Position, &RenderMesh, &SpinAnimation, &Material)>(e)
+        let Ok(mut q) =
+            world.query_one::<(&Position, &Rotation, &Scale, &RenderMesh, &Material)>(e)
         else {
             continue;
         };
-        let Some((transform, render, spin, mat)) = q.get() else {
+        let Some((transform, rot, scale, render, mat)) = q.get() else {
             continue;
         };
-        let (yaw, pitch) = if spin.enabled {
-            (spin.phase_y, spin.phase_x)
-        } else {
-            (0.0, 0.0)
-        };
-        let model = model_matrix(transform.position, yaw, pitch);
+        let model = model_matrix(transform.position, rot.xyz, scale.xyz);
         let mvp = vp * model;
         shader.set_model_normal_mvp(&model, &mvp);
         shader.set_material_rgba(mat.color.r, mat.color.g, mat.color.b, mat.opacity);

@@ -1,6 +1,6 @@
 //! Математика кадра: VP, модельная матрица, упаковка `mat4` для OpenGL.
 
-use cgmath::{Deg, Matrix3, Matrix4, Point3, Rad, Vector3, perspective};
+use cgmath::{Deg, Matrix, Matrix3, Matrix4, Point3, Rad, SquareMatrix, Vector3, perspective};
 
 /// Преобразует `cgmath::Matrix4` в 16 `f32` в **столбцовом** порядке для `glUniformMatrix4fv` / GLSL `mat4`.
 /// `mat3` для `glUniformMatrix3fv` / GLSL `mat3` (столбцы).
@@ -12,13 +12,17 @@ pub fn matrix3_column_major(m: &Matrix3<f32>) -> [f32; 9] {
     ]
 }
 
-/// Линейная часть модельной матрицы (без переноса): для ортогональных `model` (только поворот+сдвиг)
-/// этого достаточно для преобразования нормалей. При неравномерном масштабе нужна `inverse(transpose(mat3))`.
+/// Матрица нормалей: транспонированная обратная к верхней левой `3×3` у `model`
+/// (для равномерного масштаба и чистого поворота совпадает с линейной частью `model`).
 pub fn normal_matrix3_from_model(model: &Matrix4<f32>) -> Matrix3<f32> {
-    Matrix3::new(
-        model.x.x, model.x.y, model.x.z, model.y.x, model.y.y, model.y.z, model.z.x, model.z.y,
-        model.z.z,
-    )
+    let m = Matrix3::new(
+        model.x.x, model.x.y, model.x.z, //
+        model.y.x, model.y.y, model.y.z, //
+        model.z.x, model.z.y, model.z.z, //
+    );
+    m.invert()
+        .map(|inv| inv.transpose())
+        .unwrap_or_else(Matrix3::identity)
 }
 
 pub fn matrix4_column_major(m: &Matrix4<f32>) -> [f32; 16] {
@@ -96,9 +100,18 @@ pub fn camera_view_projection_matrix(
     proj * view
 }
 
-/// Локальная модель: перенос + поворот вокруг Y, затем X (как в старой анимации куба).
-pub fn model_matrix(translation: Vector3<f32>, yaw_rad: f32, pitch_rad: f32) -> Matrix4<f32> {
+/// Локальная модель: перенос + поворот вокруг Y, X, Z (углы `rotation_deg` в **градусах**: `.y`, `.x`, `.z`), затем масштаб.
+pub fn model_matrix(
+    translation: Vector3<f32>,
+    rotation_deg: Vector3<f32>,
+    scale: Vector3<f32>,
+) -> Matrix4<f32> {
+    let x = rotation_deg.x.to_radians();
+    let y = rotation_deg.y.to_radians();
+    let z = rotation_deg.z.to_radians();
     Matrix4::from_translation(translation)
-        * Matrix4::from_angle_y(Rad(yaw_rad))
-        * Matrix4::from_angle_x(Rad(pitch_rad))
+        * Matrix4::from_angle_y(Rad(y))
+        * Matrix4::from_angle_x(Rad(x))
+        * Matrix4::from_angle_z(Rad(z))
+        * Matrix4::from_nonuniform_scale(scale.x, scale.y, scale.z)
 }
