@@ -100,6 +100,18 @@ pub fn camera_view_projection_matrix(
     proj * view
 }
 
+/// Позиция глаза на сфере вокруг `target`: взгляд на цель с углами [`camera_view_matrix`] (`yaw` / `pitch` в **градусах**) на расстоянии `distance`.
+#[inline]
+pub fn camera_eye_for_look_at_target(
+    target: Vector3<f32>,
+    distance: f32,
+    yaw_deg: f32,
+    pitch_deg: f32,
+) -> Vector3<f32> {
+    let f = camera_forward_world(yaw_deg.to_radians(), pitch_deg.to_radians());
+    target - f * distance
+}
+
 /// Локальная модель: перенос + поворот вокруг Y, X, Z (углы `rotation_deg` в **градусах**: `.y`, `.x`, `.z`), затем масштаб.
 pub fn model_matrix(
     translation: Vector3<f32>,

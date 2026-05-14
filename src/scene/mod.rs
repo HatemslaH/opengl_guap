@@ -7,12 +7,12 @@ pub mod grid;
 pub mod spawn;
 
 pub use crate::ecs::{
-    Camera, CameraLookTarget, Color, Light, LightKind, Material, Position, RenderMesh, Rotation,
-    Scale, SpinAnimation, SurfaceLighting,
+    Camera, CameraKeyboardOrbit, CameraLookTarget, Color, KeyboardOrbitKeys, Light, LightKind,
+    Material, Position, RenderMesh, Rotation, Scale, SpinAnimation, SurfaceLighting,
 };
 pub use spawn::{
-    spawn_camera, spawn_camera_with_look, spawn_coordinate_grid, spawn_cube,
-    spawn_directional_light, spawn_point_light,
+    spawn_camera, spawn_camera_with_look, spawn_camera_with_look_and_keyboard_orbit,
+    spawn_coordinate_grid, spawn_cube, spawn_directional_light, spawn_point_light,
 };
 
 use cgmath::Vector3;
@@ -126,11 +126,12 @@ impl Scene {
             SpinAnimation::disabled(),
             Some(Material::new(Color::from_rgb8(56, 19, 64), 1.0)),
         );
-        spawn_camera_with_look(
+        spawn_camera_with_look_and_keyboard_orbit(
             &mut s.world,
             Vector3::new(-2.0, 2.0, 2.8),
             Camera::new(90.0, 0.1, 100.0),
             CameraLookTarget::Entity(cube),
+            CameraKeyboardOrbit::default(),
         );
         s
     }

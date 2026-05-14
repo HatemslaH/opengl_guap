@@ -3,21 +3,22 @@
 use super::cube::build_cube_vertex_data;
 use super::grid::build_grid_vertices;
 use crate::ecs::{
-    Camera, CameraLookTarget, Light, Material, Position, RenderMesh, Rotation, Scale, SpinAnimation,
+    Camera, CameraKeyboardOrbit, CameraLookTarget, Light, Material, Position, RenderMesh, Rotation,
+    Scale, SpinAnimation,
 };
 use crate::graphics::{Mesh, MeshTopology};
 use cgmath::Vector3;
 use hecs::{Entity, World};
 
 /// Камера: [`Position`] (глаз), [`Rotation`] (ориентация в градусах, поле `xyz`), [`Camera`] (FOV, near/far). Без меша — не рисуется.
-pub fn spawn_camera(world: &mut World, translation: Vector3<f32>, camera: Camera) {
+pub fn spawn_camera(world: &mut World, translation: Vector3<f32>, camera: Camera) -> Entity {
     world.spawn((
         Position {
             position: translation,
         },
         Rotation::default(),
         camera,
-    ));
+    ))
 }
 
 /// Камера с автоповоротом на цель ([`CameraLookTarget`]) — см. [`crate::ecs::systems::camera_look_at_system`].
@@ -26,7 +27,7 @@ pub fn spawn_camera_with_look(
     translation: Vector3<f32>,
     camera: Camera,
     look: CameraLookTarget,
-) {
+) -> Entity {
     world.spawn((
         Position {
             position: translation,
@@ -34,7 +35,26 @@ pub fn spawn_camera_with_look(
         Rotation::default(),
         camera,
         look,
-    ));
+    ))
+}
+
+/// Как [`spawn_camera_with_look`], плюс опциональное орбитальное управление с клавиатуры ([`CameraKeyboardOrbit`]).
+pub fn spawn_camera_with_look_and_keyboard_orbit(
+    world: &mut World,
+    translation: Vector3<f32>,
+    camera: Camera,
+    look: CameraLookTarget,
+    orbit: CameraKeyboardOrbit,
+) -> Entity {
+    world.spawn((
+        Position {
+            position: translation,
+        },
+        Rotation::default(),
+        camera,
+        look,
+        orbit,
+    ))
 }
 
 /// Направленный свет без [`Position`] — направление задаётся в [`LightKind::Directional`].
@@ -80,8 +100,8 @@ pub fn spawn_cube(
     let data = build_cube_vertex_data();
     let mesh = Mesh::new_interleaved_pos3_color3_normal3(&data, 36);
     let pos = Position { position };
-    let rot = rotation.unwrap_or(Rotation::default());
-    let scale = scale.unwrap_or(Scale::default());
+    let rot = rotation.unwrap_or_default();
+    let scale = scale.unwrap_or_default();
     let render = RenderMesh {
         mesh,
         topology: MeshTopology::Triangles,

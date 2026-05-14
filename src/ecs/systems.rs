@@ -1,15 +1,16 @@
 //! Системы ECS: анимация вращения и отрисовка мешей.
 
 use crate::ecs::components::{
-    Camera, CameraLookTarget, Light, LightKind, Material, Position, RenderMesh, Rotation, Scale,
-    SpinAnimation,
+    Camera, CameraKeyboardOrbit, CameraLookTarget, KeyboardOrbitKeys, Light, LightKind, Material,
+    Position, RenderMesh, Rotation, Scale, SpinAnimation,
 };
 use crate::graphics::{
     MAX_DIRECTIONAL_LIGHTS, MAX_POINT_LIGHTS, MeshTopology, ShaderProgram,
-    camera_view_projection_matrix, camera_yaw_pitch_deg_from_look_direction, model_matrix,
-    set_opaque_depth_blend, set_transparent_depth_blend, view_projection_matrix,
+    camera_eye_for_look_at_target, camera_view_projection_matrix,
+    camera_yaw_pitch_deg_from_look_direction, model_matrix, set_opaque_depth_blend,
+    set_transparent_depth_blend, view_projection_matrix,
 };
-use cgmath::Vector3;
+use cgmath::{InnerSpace, Vector3};
 use hecs::{Entity, World};
 
 /// Для сущностей с [`SpinAnimation`] + [`Rotation`] и `enabled == true` добавляет скорости к углам [`Rotation`].
@@ -25,7 +26,80 @@ pub fn spin_animation_system(world: &mut World, dt: f32) {
     }
 }
 
-/// Для сущностей с [`Position`] + [`Camera`] + [`CameraLookTarget`] выставляет углы [`Camera`],
+/// Для сущностей с [`Position`] + [`Camera`] + [`CameraLookTarget`] + [`CameraKeyboardOrbit`] и `orbit.enabled`
+/// двигает глаз по сфере вокруг цели по клавишам из `keys` (см. [`KeyboardOrbitKeys`]).
+///
+/// Вызывайте **до** [`camera_look_at_system`], чтобы затем пересчитать [`Rotation`].
+pub fn camera_keyboard_orbit_system(world: &mut World, keys: &KeyboardOrbitKeys, dt: f32) {
+    if dt <= 0.0 {
+        return;
+    }
+
+    let work: Vec<(Entity, Vector3<f32>, CameraLookTarget, CameraKeyboardOrbit)> = world
+        .query::<(&Position, &Camera, &CameraLookTarget, &CameraKeyboardOrbit)>()
+        .into_iter()
+        .map(|(e, (pos, _cam, look, orbit))| (e, pos.position, look.clone(), orbit.clone()))
+        .collect();
+
+    for (entity, eye, look, mut orbit) in work {
+        if !orbit.enabled {
+            continue;
+        }
+
+        let target = match &look {
+            CameraLookTarget::World(p) => *p,
+            CameraLookTarget::Entity(target_e) => match world.get::<&Position>(*target_e) {
+                Ok(t) => t.position,
+                Err(_) => continue,
+            },
+        };
+
+        let dir = target - eye;
+        if !orbit.initialized {
+            let dist = dir.magnitude();
+            if dist > 1e-4
+                && let Some((yaw, pitch)) = camera_yaw_pitch_deg_from_look_direction(dir)
+            {
+                orbit.yaw_deg = yaw;
+                orbit.pitch_deg = pitch;
+                orbit.distance = dist;
+                orbit.initialized = true;
+            }
+        }
+
+        if !orbit.initialized {
+            continue;
+        }
+
+        if keys.right {
+            orbit.yaw_deg -= orbit.yaw_speed_deg_per_sec * dt;
+        }
+        if keys.left {
+            orbit.yaw_deg += orbit.yaw_speed_deg_per_sec * dt;
+        }
+        if keys.up {
+            orbit.pitch_deg -= orbit.pitch_speed_deg_per_sec * dt;
+        }
+        if keys.down {
+            orbit.pitch_deg += orbit.pitch_speed_deg_per_sec * dt;
+        }
+        orbit.pitch_deg = orbit
+            .pitch_deg
+            .clamp(orbit.pitch_min_deg, orbit.pitch_max_deg);
+
+        let new_eye =
+            camera_eye_for_look_at_target(target, orbit.distance, orbit.yaw_deg, orbit.pitch_deg);
+
+        if let Ok(mut pos) = world.get::<&mut Position>(entity) {
+            pos.position = new_eye;
+        }
+        if let Ok(mut o) = world.get::<&mut CameraKeyboardOrbit>(entity) {
+            *o = orbit;
+        }
+    }
+}
+
+/// Для сущностей с [`Position`] + [`Camera`] + [`CameraLookTarget`] выставляет углы [`Rotation`],
 /// чтобы взгляд был на мировую точку или на [`Position`] указанной сущности.
 pub fn camera_look_at_system(world: &mut World) {
     let items: Vec<(hecs::Entity, Vector3<f32>, CameraLookTarget)> =

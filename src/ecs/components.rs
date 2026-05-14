@@ -317,6 +317,53 @@ impl CameraLookTarget {
     }
 }
 
+/// Состояние клавиш орбиты (Q/E/W/S), которое приложение обновляет из событий клавиатуры и передаёт в [`crate::ecs::systems::camera_keyboard_orbit_system`].
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct KeyboardOrbitKeys {
+    pub right: bool,
+    pub left: bool,
+    pub up: bool,
+    pub down: bool,
+}
+
+/// Орбитальное управление камерой с клавиатуры: **Q/E** — вокруг цели по азимуту (ось Y), **W/S** — наклон вверх/вниз.
+///
+/// Ставьте на ту же сущность, что и [`Position`], [`Camera`], [`CameraLookTarget`]. Система
+/// [`crate::ecs::systems::camera_keyboard_orbit_system`] (до [`crate::ecs::systems::camera_look_at_system`])
+/// обновляет [`Position`] по сфере вокруг цели; взгляд по-прежнему задаётся look-at.
+#[derive(Clone, Debug)]
+pub struct CameraKeyboardOrbit {
+    pub enabled: bool,
+    /// Скорость азимута при удержании Q или E (градусов в секунду).
+    pub yaw_speed_deg_per_sec: f32,
+    /// Скорость наклона при удержании W или S (градусов в секунду).
+    pub pitch_speed_deg_per_sec: f32,
+    pub pitch_min_deg: f32,
+    pub pitch_max_deg: f32,
+    /// Текущий азимут и наклон (то же соглашение, что у [`camera_yaw_pitch_deg_from_look_direction`](crate::graphics::camera_yaw_pitch_deg_from_look_direction)).
+    pub yaw_deg: f32,
+    pub pitch_deg: f32,
+    pub distance: f32,
+    /// После первого кадра с валидной целью углы и расстояние берутся из текущей позиции камеры.
+    pub initialized: bool,
+}
+
+impl Default for CameraKeyboardOrbit {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            yaw_speed_deg_per_sec: 72.0,
+            pitch_speed_deg_per_sec: 56.0,
+            pitch_min_deg: -85.0,
+            pitch_max_deg: 85.0,
+            yaw_deg: 0.0,
+            pitch_deg: 0.0,
+            distance: 4.0,
+            initialized: false,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

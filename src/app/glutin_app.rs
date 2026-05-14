@@ -2,7 +2,10 @@
 //!
 //! Сюда не добавляют компоненты сущностей — только события окна и порядок систем.
 
-use crate::ecs::{camera_look_at_system, render_mesh_system, spin_animation_system};
+use crate::ecs::{
+    KeyboardOrbitKeys, camera_keyboard_orbit_system, camera_look_at_system, render_mesh_system,
+    spin_animation_system,
+};
 use crate::graphics::{ShaderProgram, enable_depth_test};
 use crate::scene::Scene;
 use glutin::config::ConfigTemplateBuilder;
@@ -16,8 +19,9 @@ use std::ffi::CString;
 use std::num::NonZeroU32;
 use std::time::Instant;
 use winit::application::ApplicationHandler;
-use winit::event::WindowEvent;
+use winit::event::{ElementState, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
+use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowId};
 
 pub struct GlutinApp {
@@ -29,6 +33,7 @@ pub struct GlutinApp {
     start_time: Instant,
     /// Время прошлого кадра (сек), для `dt` анимации.
     prev_elapsed_secs: Option<f32>,
+    orbit_keys: KeyboardOrbitKeys,
 }
 
 impl Default for GlutinApp {
@@ -47,6 +52,7 @@ impl GlutinApp {
             scene: None,
             start_time: Instant::now(),
             prev_elapsed_secs: None,
+            orbit_keys: KeyboardOrbitKeys::default(),
         }
     }
 }
@@ -143,6 +149,7 @@ impl ApplicationHandler for GlutinApp {
 
                 if let (Some(shader), Some(scene)) = (&self.shader, &mut self.scene) {
                     spin_animation_system(&mut scene.world, dt);
+                    camera_keyboard_orbit_system(&mut scene.world, &self.orbit_keys, dt);
                     camera_look_at_system(&mut scene.world);
 
                     unsafe {
@@ -161,6 +168,25 @@ impl ApplicationHandler for GlutinApp {
                     w.request_redraw();
                 }
             }
+            WindowEvent::Focused(focused) => {
+                if !focused {
+                    self.orbit_keys = KeyboardOrbitKeys::default();
+                }
+            }
+
+            WindowEvent::KeyboardInput { event, .. } => {
+                let pressed = event.state == ElementState::Pressed;
+                if let PhysicalKey::Code(code) = event.physical_key {
+                    match code {
+                        KeyCode::KeyD => self.orbit_keys.right = pressed,
+                        KeyCode::KeyA => self.orbit_keys.left = pressed,
+                        KeyCode::KeyW => self.orbit_keys.up = pressed,
+                        KeyCode::KeyS => self.orbit_keys.down = pressed,
+                        _ => {}
+                    }
+                }
+            }
+
             WindowEvent::Resized(size) => {
                 let nw = NonZeroU32::new(size.width.max(1)).expect("ширина после resize");
                 let nh = NonZeroU32::new(size.height.max(1)).expect("высота после resize");
