@@ -1,9 +1,10 @@
-//! Окно, поверхность OpenGL, контекст и связка с сценой.
+//! Окно, поверхность OpenGL, контекст и связка с ECS-сценой.
 //!
-//! Сюда не добавляют геометрию конкретных моделей — только события окна и порядок вызовов рендера.
+//! Сюда не добавляют компоненты сущностей — только события окна и порядок систем.
 
-use crate::graphics::{ShaderProgram, enable_depth_test, mvp_matrix};
-use crate::scene::{DrawContext, Scene};
+use crate::ecs::{render_mesh_system, spin_animation_system};
+use crate::graphics::{ShaderProgram, enable_depth_test};
+use crate::scene::Scene;
 use glutin::config::ConfigTemplateBuilder;
 use glutin::context::{ContextAttributesBuilder, PossiblyCurrentContext};
 use glutin::display::GetGlDisplay;
@@ -26,6 +27,8 @@ pub struct GlutinApp {
     shader: Option<ShaderProgram>,
     scene: Option<Scene>,
     start_time: Instant,
+    /// Время прошлого кадра (сек), для `dt` анимации.
+    prev_elapsed_secs: Option<f32>,
 }
 
 impl Default for GlutinApp {
@@ -43,6 +46,7 @@ impl GlutinApp {
             shader: None,
             scene: None,
             start_time: Instant::now(),
+            prev_elapsed_secs: None,
         }
     }
 }
@@ -103,7 +107,7 @@ impl ApplicationHandler for GlutinApp {
 
         let shader = ShaderProgram::new_colored_mesh();
         enable_depth_test();
-        let scene = Scene::with_demo_cube();
+        let scene = Scene::with_demo();
 
         self.gl_context = Some(gl_context);
         self.gl_surface = Some(gl_surface);
@@ -133,18 +137,19 @@ impl ApplicationHandler for GlutinApp {
                     .unwrap_or((800, 600));
                 let aspect = w_px as f32 / h_px as f32;
 
-                if let (Some(shader), Some(scene)) = (&self.shader, &self.scene) {
-                    let mvp = mvp_matrix(elapsed, aspect);
+                let prev = self.prev_elapsed_secs.unwrap_or(elapsed);
+                let dt = (elapsed - prev).clamp(0.0, 0.05);
+                self.prev_elapsed_secs = Some(elapsed);
+
+                if let (Some(shader), Some(scene)) = (&self.shader, &mut self.scene) {
+                    spin_animation_system(&mut scene.world, dt);
 
                     unsafe {
                         gl::ClearColor(0.1, 0.1, 0.15, 1.0);
                         gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
                     }
 
-                    shader.use_program();
-                    shader.set_mvp(&mvp);
-                    let ctx = DrawContext { shader, mvp: &mvp };
-                    scene.draw_all(&ctx);
+                    render_mesh_system(&mut scene.world, shader, aspect);
                 }
 
                 if let (Some(ctx), Some(surface)) = (&self.gl_context, &self.gl_surface) {

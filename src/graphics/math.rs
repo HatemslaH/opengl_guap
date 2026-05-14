@@ -1,4 +1,4 @@
-//! Математика кадра: MVP и упаковка матрицы для OpenGL (столбцовый порядок).
+//! Математика кадра: VP, модельная матрица, упаковка `mat4` для OpenGL.
 
 use cgmath::{Deg, Matrix4, Point3, Rad, Vector3, perspective};
 
@@ -12,15 +12,57 @@ pub fn matrix4_column_major(m: &Matrix4<f32>) -> [f32; 16] {
     ]
 }
 
-/// Собирает матрицу `proj * view * model` для вращающегося куба в центре сцены (как в исходном примере).
-pub fn mvp_matrix(elapsed_secs: f32, aspect: f32) -> Matrix4<f32> {
-    let model = Matrix4::from_angle_y(Rad(elapsed_secs * 0.7))
-        * Matrix4::from_angle_x(Rad(elapsed_secs * 0.35));
-    let view = Matrix4::look_at_rh(
-        Point3::new(0.0, 0.0, 2.8),
-        Point3::new(0.0, 0.0, 0.0),
+/// Матрица `proj * view` (камера не «вшита» в модель — вращение задаётся на сущности).
+pub fn view_projection_matrix(aspect: f32) -> Matrix4<f32> {
+    camera_view_projection_matrix(
+        Vector3::new(0.0, 0.0, 2.8),
+        0.0,
+        0.0,
+        45.0,
+        aspect,
+        0.1,
+        100.0,
+    )
+}
+
+/// Направление взгляда в мировых координатах: `yaw` / `pitch` в радианах (как у FPS-камеры).
+fn camera_forward_world(yaw_rad: f32, pitch_rad: f32) -> Vector3<f32> {
+    Vector3::new(
+        yaw_rad.sin() * pitch_rad.cos(),
+        pitch_rad.sin(),
+        -yaw_rad.cos() * pitch_rad.cos(),
+    )
+}
+
+/// Матрица вида: позиция `eye`, ориентация через `yaw`/`pitch`, мир праворукий.
+pub fn camera_view_matrix(eye: Vector3<f32>, yaw_rad: f32, pitch_rad: f32) -> Matrix4<f32> {
+    let f = camera_forward_world(yaw_rad, pitch_rad);
+    let target = Point3::new(eye.x + f.x, eye.y + f.y, eye.z + f.z);
+    Matrix4::look_at_rh(
+        Point3::new(eye.x, eye.y, eye.z),
+        target,
         Vector3::new(0.0, 1.0, 0.0),
-    );
-    let proj = perspective(Deg(45.0), aspect, 0.1, 100.0);
-    proj * view * model
+    )
+}
+
+/// Полная матрица `proj * view` для камеры с заданным FOV и плоскостей отсечения.
+pub fn camera_view_projection_matrix(
+    eye: Vector3<f32>,
+    yaw_rad: f32,
+    pitch_rad: f32,
+    fovy_deg: f32,
+    aspect: f32,
+    z_near: f32,
+    z_far: f32,
+) -> Matrix4<f32> {
+    let view = camera_view_matrix(eye, yaw_rad, pitch_rad);
+    let proj = perspective(Deg(fovy_deg), aspect, z_near, z_far);
+    proj * view
+}
+
+/// Локальная модель: перенос + поворот вокруг Y, затем X (как в старой анимации куба).
+pub fn model_matrix(translation: Vector3<f32>, yaw_rad: f32, pitch_rad: f32) -> Matrix4<f32> {
+    Matrix4::from_translation(translation)
+        * Matrix4::from_angle_y(Rad(yaw_rad))
+        * Matrix4::from_angle_x(Rad(pitch_rad))
 }

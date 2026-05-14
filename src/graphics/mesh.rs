@@ -1,6 +1,13 @@
-//! VAO/VBO и отрисовка массива треугольников (`GL_TRIANGLES`).
+//! VAO/VBO и отрисовка примитивов: треугольники (`GL_TRIANGLES`) и линии (`GL_LINES`).
 
 use std::ffi::c_void;
+
+/// Как интерпретировать вершины при вызове [`Mesh::draw`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MeshTopology {
+    Triangles,
+    Lines,
+}
 
 /// Интерливинг `vec3 позиция` + `vec3 цвет` на вершину, два атрибута с индексами 0 и 1.
 pub struct Mesh {
@@ -50,11 +57,31 @@ impl Mesh {
         }
     }
 
+    pub fn draw(&self, topology: MeshTopology) {
+        match topology {
+            MeshTopology::Triangles => self.draw_triangles(),
+            MeshTopology::Lines => self.draw_lines(),
+        }
+    }
+
     /// Рисует треугольники; шейдер и uniform должны быть уже настроены вызывающим кодом.
     pub fn draw_triangles(&self) {
         unsafe {
             gl::BindVertexArray(self.vao);
             gl::DrawArrays(gl::TRIANGLES, 0, self.vertex_count);
+        }
+    }
+
+    /// Рисует отрезки линий; число вершин должно быть **чётным** (каждая пара — один отрезок).
+    pub fn draw_lines(&self) {
+        debug_assert_eq!(
+            self.vertex_count % 2,
+            0,
+            "GL_LINES: нужно чётное число вершин"
+        );
+        unsafe {
+            gl::BindVertexArray(self.vao);
+            gl::DrawArrays(gl::LINES, 0, self.vertex_count);
         }
     }
 }

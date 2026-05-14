@@ -1,40 +1,84 @@
-//! Сцена: состав объектов и точка расширения для новых фигур.
+//! Сцена на ECS ([`hecs::World`]): сетка, кубы и другие сущности как наборы компонентов.
 //!
-//! **Не** помещайте сюда код компиляции шейдеров или создания контекста — это [`crate::graphics`] и [`crate::app`].
+//! Рендер и анимация — в [`crate::ecs::systems`], не здесь.
 
 pub mod cube;
-pub mod drawable;
+pub mod grid;
+pub mod spawn;
 
-pub use cube::Cube;
-pub use drawable::{DrawContext, Drawable};
+pub use crate::ecs::{Camera, RenderMesh, SpinAnimation, Transform};
+pub use spawn::{spawn_camera, spawn_coordinate_grid, spawn_cube};
 
-/// Владеет нарисуемыми объектами; порядок в векторе — порядок отрисовки.
+use cgmath::Vector3;
+use hecs::World;
+
+/// Удобная цепочка вместо старого `Box::new(Cube::new())`: позиция задаётся явно.
+///
+/// ```ignore
+/// Cube::at(vec3(2.0, 0.0, -1.0)).spawn(&mut scene);
+/// Cube::at(vec3(0.0, 0.5, 0.0))
+///     .with_spin(SpinAnimation::demo_orbit())
+///     .spawn(&mut scene);
+/// ```
+pub struct Cube;
+
+impl Cube {
+    pub fn at(translation: Vector3<f32>) -> CubeSpawn {
+        CubeSpawn {
+            translation,
+            spin: SpinAnimation::disabled(),
+        }
+    }
+}
+
+pub struct CubeSpawn {
+    translation: Vector3<f32>,
+    spin: SpinAnimation,
+}
+
+impl CubeSpawn {
+    /// Подключить (или заменить) анимацию вращения к этому кубу.
+    pub fn with_spin(mut self, spin: SpinAnimation) -> Self {
+        self.spin = spin;
+        self
+    }
+
+    /// Зарегистрировать сущность в мире.
+    pub fn spawn(self, scene: &mut Scene) {
+        spawn::spawn_cube(&mut scene.world, self.translation, self.spin);
+    }
+}
+
+/// Владеет [`World`](hecs::World) и всеми сущностями сцены.
 pub struct Scene {
-    objects: Vec<Box<dyn Drawable>>,
+    pub world: World,
 }
 
 impl Scene {
     pub fn new() -> Self {
         Self {
-            objects: Vec::new(),
+            world: World::new(),
         }
     }
 
-    /// Демо-сцена: один цветной куб.
-    pub fn with_demo_cube() -> Self {
+    pub fn with_demo() -> Self {
         let mut s = Self::new();
-        s.add(Box::new(Cube::new()));
+        spawn_camera(
+            &mut s.world,
+            Vector3::new(-2.0, 2.0, 2.8),
+            Camera::new(30.0, -20.0, 90.0, 0.1, 100.0),
+        );
+        spawn_coordinate_grid(&mut s.world, 8.0, 1.0);
+        spawn_cube(
+            &mut s.world,
+            Vector3::new(0.0, 0.0, 0.0),
+            SpinAnimation::disabled(),
+        );
         s
     }
 
-    pub fn add(&mut self, object: Box<dyn Drawable>) {
-        self.objects.push(object);
-    }
-
-    pub fn draw_all(&self, ctx: &DrawContext<'_>) {
-        for obj in &self.objects {
-            obj.draw(ctx);
-        }
+    pub fn spawn_grid_default(&mut self) {
+        spawn_coordinate_grid(&mut self.world, 8.0, 1.0);
     }
 }
 
