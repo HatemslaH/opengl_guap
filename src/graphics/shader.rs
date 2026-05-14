@@ -21,9 +21,17 @@ const FRAG_SRC: &str = r#"
     #version 330 core
     in vec3 vColor;
     out vec4 FragColor;
+    uniform vec3 uMatRgb;
+    uniform float uMatAlpha;
+    // 1 — цвет из вершины (сетка); 0 — из uniform материала.
+    uniform int uUseVertexColor;
     void main()
     {
-        FragColor = vec4(vColor, 1.0);
+        if (uUseVertexColor != 0) {
+            FragColor = vec4(vColor, 1.0);
+        } else {
+            FragColor = vec4(uMatRgb, uMatAlpha);
+        }
     }
 "#;
 
@@ -31,6 +39,9 @@ const FRAG_SRC: &str = r#"
 pub struct ShaderProgram {
     id: u32,
     mvp_location: i32,
+    mat_rgb_location: i32,
+    mat_alpha_location: i32,
+    use_vertex_color_location: i32,
 }
 
 impl ShaderProgram {
@@ -55,9 +66,21 @@ impl ShaderProgram {
             gl::DeleteShader(fs);
 
             let mvp_name = CString::new("uMVP").expect("имя uniform без NUL");
+            let mat_rgb_name = CString::new("uMatRgb").expect("имя uniform без NUL");
+            let mat_alpha_name = CString::new("uMatAlpha").expect("имя uniform без NUL");
+            let use_vertex_color_name = CString::new("uUseVertexColor").expect("имя uniform без NUL");
             let mvp_location = gl::GetUniformLocation(id, mvp_name.as_ptr());
+            let mat_rgb_location = gl::GetUniformLocation(id, mat_rgb_name.as_ptr());
+            let mat_alpha_location = gl::GetUniformLocation(id, mat_alpha_name.as_ptr());
+            let use_vertex_color_location = gl::GetUniformLocation(id, use_vertex_color_name.as_ptr());
 
-            Self { id, mvp_location }
+            Self {
+                id,
+                mvp_location,
+                mat_rgb_location,
+                mat_alpha_location,
+                use_vertex_color_location,
+            }
         }
     }
 
@@ -82,6 +105,24 @@ impl ShaderProgram {
         let cols = matrix4_column_major(mvp);
         unsafe {
             gl::UniformMatrix4fv(self.mvp_location, 1, gl::FALSE, cols.as_ptr());
+        }
+    }
+
+    /// `true` — фрагментный цвет из атрибута вершины (линии сетки); `false` — из [`Self::set_material_rgba`].
+    pub fn set_vertex_color_mode(&self, use_vertex_color: bool) {
+        unsafe {
+            gl::Uniform1i(
+                self.use_vertex_color_location,
+                if use_vertex_color { 1 } else { 0 },
+            );
+        }
+    }
+
+    /// RGB и альфа материала (в шейдере умножение с вершинным цветом не делается — только uniform).
+    pub fn set_material_rgba(&self, r: f32, g: f32, b: f32, a: f32) {
+        unsafe {
+            gl::Uniform3f(self.mat_rgb_location, r, g, b);
+            gl::Uniform1f(self.mat_alpha_location, a);
         }
     }
 }

@@ -61,6 +61,71 @@ pub struct RenderMesh {
     pub topology: MeshTopology,
 }
 
+/// RGB в **линейном 0.0–1.0** (как в шейдере OpenGL).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Color {
+    pub r: f32,
+    pub g: f32,
+    pub b: f32,
+}
+
+impl Color {
+    pub const fn new(r: f32, g: f32, b: f32) -> Self {
+        Self { r, g, b }
+    }
+
+    /// Компоненты 0–255 (sRGB-окно), деление на 255 — учебное приближение без гамма-коррекции.
+    pub fn from_rgb8(red: u8, green: u8, blue: u8) -> Self {
+        Self {
+            r: red as f32 / 255.0,
+            g: green as f32 / 255.0,
+            b: blue as f32 / 255.0,
+        }
+    }
+}
+
+/// Материал для мешей с треугольниками: цвет и непрозрачность.
+///
+/// Без этого компонента **треугольники** не рисуются (куб «прозрачный» / отсутствует в кадре).
+/// Линии (сетка) по-прежнему используют только цвет вершин — материал к ним не нужен.
+///
+/// При `opacity >= 1.0` объект идёт в непрозрачный проход (без `GL_BLEND`, с записью в Z-буфер).
+/// При `0.0 < opacity < 1.0` — отдельный проход с смешиванием (дороже по состоянию конвейера).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Material {
+    pub color: Color,
+    /// 1.0 — полностью непрозрачно; меньше — альфа-смешивание.
+    pub opacity: f32,
+}
+
+impl Material {
+    pub const fn new(color: Color, opacity: f32) -> Self {
+        Self { color, opacity }
+    }
+
+    pub const fn opaque(color: Color) -> Self {
+        Self {
+            color,
+            opacity: 1.0,
+        }
+    }
+
+    #[inline]
+    pub fn is_fully_opaque(self) -> bool {
+        self.opacity >= 1.0 - 1e-5
+    }
+
+    #[inline]
+    pub fn has_transparency(self) -> bool {
+        !self.is_fully_opaque()
+    }
+
+    #[inline]
+    pub fn is_visible(self) -> bool {
+        self.opacity > 1e-5
+    }
+}
+
 /// Камера на сцене: позиция — в [`Transform`], здесь ориентация и проекция.
 ///
 /// `yaw_deg` и `pitch_deg` — в **градусах**: горизонтальный поворот вокруг Y и наклон вверх/вниз.

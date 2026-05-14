@@ -5,9 +5,11 @@
 pub mod depth;
 pub mod math;
 pub mod mesh;
+pub mod render_state;
 pub mod shader;
 
 pub use depth::enable_depth_test;
+pub use render_state::{set_opaque_depth_blend, set_transparent_depth_blend};
 pub use math::{
     camera_view_matrix, camera_view_projection_matrix, camera_yaw_pitch_deg_from_look_direction,
     matrix4_column_major, model_matrix, view_projection_matrix,

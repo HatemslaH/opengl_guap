@@ -2,7 +2,9 @@
 
 use super::cube::build_cube_vertex_data;
 use super::grid::build_grid_vertices;
-use crate::ecs::{Camera, CameraLookTarget, Position, RenderMesh, SpinAnimation};
+use crate::ecs::{
+    Camera, CameraLookTarget, Material, Position, RenderMesh, SpinAnimation,
+};
 use crate::graphics::{Mesh, MeshTopology};
 use cgmath::Vector3;
 use hecs::{Entity, World};
@@ -51,18 +53,25 @@ pub fn spawn_coordinate_grid(world: &mut World, half_extent: f32, step: f32) {
     ));
 }
 
-/// Куб с центром в `position`. `spin` — анимационный компонент ([`SpinAnimation::disabled()`] если не нужен поворот).
+/// Куб с центром в `position`. `spin` — анимация; `material` — если [`None`], треугольники не рисуются.
 ///
 /// Возвращает [`Entity`], чтобы на него можно было сослаться, например из [`CameraLookTarget::Entity`].
-pub fn spawn_cube(world: &mut World, position: Vector3<f32>, spin: SpinAnimation) -> Entity {
+pub fn spawn_cube(
+    world: &mut World,
+    position: Vector3<f32>,
+    spin: SpinAnimation,
+    material: Option<Material>,
+) -> Entity {
     let data = build_cube_vertex_data();
     let mesh = Mesh::new_interleaved_pos3_color3(&data, 36);
-    world.spawn((
-        Position { position },
-        RenderMesh {
-            mesh,
-            topology: MeshTopology::Triangles,
-        },
-        spin,
-    ))
+    let pos = Position { position };
+    let render = RenderMesh {
+        mesh,
+        topology: MeshTopology::Triangles,
+    };
+    if let Some(m) = material {
+        world.spawn((pos, render, spin, m))
+    } else {
+        world.spawn((pos, render, spin))
+    }
 }

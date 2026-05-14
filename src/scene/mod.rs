@@ -6,7 +6,9 @@ pub mod cube;
 pub mod grid;
 pub mod spawn;
 
-pub use crate::ecs::{Camera, CameraLookTarget, Position, RenderMesh, SpinAnimation};
+pub use crate::ecs::{
+    Camera, CameraLookTarget, Color, Material, Position, RenderMesh, SpinAnimation,
+};
 pub use spawn::{spawn_camera, spawn_camera_with_look, spawn_coordinate_grid, spawn_cube};
 
 use cgmath::Vector3;
@@ -27,6 +29,7 @@ impl Cube {
         CubeSpawn {
             translation,
             spin: SpinAnimation::disabled(),
+            material: None,
         }
     }
 }
@@ -34,6 +37,7 @@ impl Cube {
 pub struct CubeSpawn {
     translation: Vector3<f32>,
     spin: SpinAnimation,
+    material: Option<Material>,
 }
 
 impl CubeSpawn {
@@ -43,9 +47,15 @@ impl CubeSpawn {
         self
     }
 
+    /// Материал куба; без вызова — куб без компонента [`Material`] (в кадре не виден).
+    pub fn with_material(mut self, material: Material) -> Self {
+        self.material = Some(material);
+        self
+    }
+
     /// Зарегистрировать сущность в мире.
     pub fn spawn(self, scene: &mut Scene) -> Entity {
-        spawn::spawn_cube(&mut scene.world, self.translation, self.spin)
+        spawn::spawn_cube(&mut scene.world, self.translation, self.spin, self.material)
     }
 }
 
@@ -68,6 +78,13 @@ impl Scene {
             &mut s.world,
             Vector3::new(0.0, 0.0, 0.0),
             SpinAnimation::disabled(),
+            Some(Material::new(Color::from_rgb8(120, 180, 255), 1.0)),
+        );
+        let _cube1 = spawn_cube(
+            &mut s.world,
+            Vector3::new(1.0, -0.5, -1.0),
+            SpinAnimation::disabled(),
+            Some(Material::new(Color::from_rgb8(152, 50, 51), 0.5)),
         );
         spawn_camera_with_look(
             &mut s.world,

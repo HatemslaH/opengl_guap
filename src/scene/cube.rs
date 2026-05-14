@@ -3,9 +3,10 @@
 /// Вершины: интерливинг `xyz` + `rgb`, 12 треугольников (6 граней × 2).
 pub fn build_cube_vertex_data() -> Vec<f32> {
     let mut v = Vec::with_capacity(36 * 6);
-    let mut face = |corners: [[f32; 3]; 4], color: [f32; 3]| {
+    let white = [1.0, 1.0, 1.0];
+    let mut face = |corners: [[f32; 3]; 4]| {
         let [bl, br, tr, tl] = corners;
-        let c = color;
+        let c = white;
         for p in [bl, br, tr, bl, tr, tl] {
             v.extend_from_slice(&[p[0], p[1], p[2], c[0], c[1], c[2]]);
         }
@@ -19,7 +20,6 @@ pub fn build_cube_vertex_data() -> Vec<f32> {
             [0.5, 0.5, 0.5],
             [-0.5, 0.5, 0.5],
         ],
-        [0.2, 0.8, 1.0],
     );
     // -Z
     face(
@@ -29,7 +29,6 @@ pub fn build_cube_vertex_data() -> Vec<f32> {
             [-0.5, 0.5, -0.5],
             [0.5, 0.5, -0.5],
         ],
-        [1.0, 0.3, 0.6],
     );
     // +X
     face(
@@ -39,7 +38,6 @@ pub fn build_cube_vertex_data() -> Vec<f32> {
             [0.5, 0.5, 0.5],
             [0.5, 0.5, -0.5],
         ],
-        [0.3, 1.0, 0.4],
     );
     // -X
     face(
@@ -49,7 +47,6 @@ pub fn build_cube_vertex_data() -> Vec<f32> {
             [-0.5, 0.5, -0.5],
             [-0.5, 0.5, 0.5],
         ],
-        [1.0, 0.85, 0.2],
     );
     // +Y
     face(
@@ -59,7 +56,6 @@ pub fn build_cube_vertex_data() -> Vec<f32> {
             [0.5, 0.5, 0.5],
             [0.5, 0.5, -0.5],
         ],
-        [0.95, 0.95, 1.0],
     );
     // -Y
     face(
@@ -69,7 +65,6 @@ pub fn build_cube_vertex_data() -> Vec<f32> {
             [0.5, -0.5, -0.5],
             [-0.5, -0.5, -0.5],
         ],
-        [0.45, 0.45, 0.55],
     );
 
     debug_assert_eq!(v.len(), 36 * 6);
