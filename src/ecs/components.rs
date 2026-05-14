@@ -84,7 +84,87 @@ impl Color {
     }
 }
 
-/// Материал для мешей с треугольниками: цвет и непрозрачность.
+/// Тип источника света; позже сюда можно добавить `Spot`, `Area` и т.д.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum LightKind {
+    /// Параллельные лучи: направление **к** источнику в мировых координатах (куда «светит» полусфера).
+    /// Позиция сущности не используется рендером.
+    Directional { toward_light: Vector3<f32> },
+    /// Точка в пространстве: мировая позиция берётся из [`Position`] на той же сущности.
+    Point {
+        constant: f32,
+        linear: f32,
+        quadratic: f32,
+    },
+}
+
+impl LightKind {
+    /// Направленный свет с нормализованным направлением к источнику.
+    pub fn directional_toward_light(direction: Vector3<f32>) -> Self {
+        Self::Directional {
+            toward_light: normalize_or_fallback(direction, Vector3::new(0.0, 1.0, 0.0)),
+        }
+    }
+
+    /// Точечный свет с типичным затуханием по расстоянию.
+    pub fn point_default_attenuation() -> Self {
+        Self::Point {
+            constant: 1.0,
+            linear: 0.09,
+            quadratic: 0.032,
+        }
+    }
+}
+
+fn normalize_or_fallback(v: Vector3<f32>, fallback: Vector3<f32>) -> Vector3<f32> {
+    let n = (v.x * v.x + v.y * v.y + v.z * v.z).sqrt();
+    if n > 1e-6 { v / n } else { fallback }
+}
+
+/// Источник света на сцене: вид ([`LightKind`]), цвет и общая яркость.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Light {
+    pub kind: LightKind,
+    pub color: Color,
+    /// Множитель интенсивности поверх `color` (1.0 — «как есть»).
+    pub intensity: f32,
+}
+
+impl Light {
+    pub fn new(kind: LightKind, color: Color, intensity: f32) -> Self {
+        Self {
+            kind,
+            color,
+            intensity,
+        }
+    }
+}
+
+/// Параметры отражения (Blinn–Phong) поверх базового [`Material::color`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SurfaceLighting {
+    /// Вклад окружающего освещения на альбедо (масштабирует цвет материала).
+    pub ambient: f32,
+    /// Вклад диффузной составляющей.
+    pub diffuse: f32,
+    /// Цвет блика (часто белый для диэлектриков, цветной для металлов — упрощённо).
+    pub specular_color: Color,
+    /// Показатель блеска (чем больше — тем уже и ярче блик).
+    pub shininess: f32,
+}
+
+impl Default for SurfaceLighting {
+    fn default() -> Self {
+        Self {
+            ambient: 0.15,
+            diffuse: 1.0,
+            specular_color: Color::new(1.0, 1.0, 1.0),
+            shininess: 48.0,
+        }
+    }
+}
+
+/// Материал для мешей с треугольниками: цвет, непрозрачность и параметры освещения ([`SurfaceLighting`]).
 ///
 /// Без этого компонента **треугольники** не рисуются (куб «прозрачный» / отсутствует в кадре).
 /// Линии (сетка) по-прежнему используют только цвет вершин — материал к ним не нужен.
@@ -96,18 +176,29 @@ pub struct Material {
     pub color: Color,
     /// 1.0 — полностью непрозрачно; меньше — альфа-смешивание.
     pub opacity: f32,
+    pub surface: SurfaceLighting,
 }
 
 impl Material {
-    pub const fn new(color: Color, opacity: f32) -> Self {
-        Self { color, opacity }
+    pub fn new(color: Color, opacity: f32) -> Self {
+        Self {
+            color,
+            opacity,
+            surface: SurfaceLighting::default(),
+        }
     }
 
-    pub const fn opaque(color: Color) -> Self {
+    pub fn opaque(color: Color) -> Self {
         Self {
             color,
             opacity: 1.0,
+            surface: SurfaceLighting::default(),
         }
+    }
+
+    pub fn with_surface(mut self, surface: SurfaceLighting) -> Self {
+        self.surface = surface;
+        self
     }
 
     #[inline]
@@ -126,7 +217,7 @@ impl Material {
     }
 }
 
-/// Камера на сцене: позиция — в [`Transform`], здесь ориентация и проекция.
+/// Камера на сцене: позиция — в [`Position`], здесь ориентация и проекция.
 ///
 /// `yaw_deg` и `pitch_deg` — в **градусах**: горизонтальный поворот вокруг Y и наклон вверх/вниз.
 /// Направление взгляда при `(0°, 0°)` совпадает с прежней камерой «с +Z на центр».
@@ -170,16 +261,16 @@ impl Camera {
     }
 }
 
-/// Цель взгляда для камеры: положите на ту же сущность, что и [`Camera`] + [`Transform`].
+/// Цель взгляда для камеры: положите на ту же сущность, что и [`Camera`] + [`Position`].
 /// Система [`crate::ecs::systems::camera_look_at_system`] каждый кадр перезаписывает `yaw_deg` / `pitch_deg`
-/// у [`Camera`], чтобы смотреть на точку или на другую сущность с [`Transform`].
+/// у [`Camera`], чтобы смотреть на точку или на другую сущность с [`Position`].
 ///
 /// Если цель — [`CameraLookTarget::Entity`] и сущность уже не в мире, углы не меняются.
 #[derive(Clone, Debug)]
 pub enum CameraLookTarget {
     /// Фиксированная мировая точка (центр сцены, маркер и т.д.).
     World(Vector3<f32>),
-    /// Центр [`Transform::translation`] другой сущности (например куба).
+    /// Центр [`Position::position`] другой сущности (например куба).
     Entity(Entity),
 }
 
@@ -190,5 +281,23 @@ impl CameraLookTarget {
 
     pub fn entity(target: Entity) -> Self {
         Self::Entity(target)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn directional_toward_light_is_unit() {
+        let k = LightKind::directional_toward_light(Vector3::new(3.0, 0.0, 4.0));
+        let LightKind::Directional { toward_light } = k else {
+            panic!("expected directional");
+        };
+        let n = (toward_light.x * toward_light.x
+            + toward_light.y * toward_light.y
+            + toward_light.z * toward_light.z)
+            .sqrt();
+        assert!((n - 1.0).abs() < 1e-5);
     }
 }

@@ -2,9 +2,7 @@
 
 use super::cube::build_cube_vertex_data;
 use super::grid::build_grid_vertices;
-use crate::ecs::{
-    Camera, CameraLookTarget, Material, Position, RenderMesh, SpinAnimation,
-};
+use crate::ecs::{Camera, CameraLookTarget, Light, Material, Position, RenderMesh, SpinAnimation};
 use crate::graphics::{Mesh, MeshTopology};
 use cgmath::Vector3;
 use hecs::{Entity, World};
@@ -35,6 +33,16 @@ pub fn spawn_camera_with_look(
     ));
 }
 
+/// Направленный свет без [`Position`] — направление задаётся в [`LightKind::Directional`].
+pub fn spawn_directional_light(world: &mut World, light: Light) {
+    world.spawn((light,));
+}
+
+/// Точечный свет: [`LightKind::Point`] + мировая позиция из [`Position`].
+pub fn spawn_point_light(world: &mut World, position: Vector3<f32>, light: Light) {
+    world.spawn((Position { position }, light));
+}
+
 pub fn spawn_coordinate_grid(world: &mut World, half_extent: f32, step: f32) {
     assert!(
         half_extent > 0.0 && step > 0.0,
@@ -63,7 +71,7 @@ pub fn spawn_cube(
     material: Option<Material>,
 ) -> Entity {
     let data = build_cube_vertex_data();
-    let mesh = Mesh::new_interleaved_pos3_color3(&data, 36);
+    let mesh = Mesh::new_interleaved_pos3_color3_normal3(&data, 36);
     let pos = Position { position };
     let render = RenderMesh {
         mesh,

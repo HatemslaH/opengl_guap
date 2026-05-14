@@ -1,12 +1,12 @@
 //! Системы ECS: анимация вращения и отрисовка мешей.
 
 use crate::ecs::components::{
-    Camera, CameraLookTarget, Material, Position, RenderMesh, SpinAnimation,
+    Camera, CameraLookTarget, Light, LightKind, Material, Position, RenderMesh, SpinAnimation,
 };
 use crate::graphics::{
-    MeshTopology, ShaderProgram, camera_view_projection_matrix,
-    camera_yaw_pitch_deg_from_look_direction, model_matrix, set_opaque_depth_blend,
-    set_transparent_depth_blend, view_projection_matrix,
+    MAX_DIRECTIONAL_LIGHTS, MAX_POINT_LIGHTS, MeshTopology, ShaderProgram,
+    camera_view_projection_matrix, camera_yaw_pitch_deg_from_look_direction, model_matrix,
+    set_opaque_depth_blend, set_transparent_depth_blend, view_projection_matrix,
 };
 use cgmath::Vector3;
 use hecs::{Entity, World};
@@ -24,8 +24,8 @@ pub fn spin_animation_system(world: &mut World, dt: f32) {
     }
 }
 
-/// Для сущностей с [`Transform`] + [`Camera`] + [`CameraLookTarget`] выставляет углы [`Camera`],
-/// чтобы взгляд был на мировую точку или на [`Transform`] указанной сущности.
+/// Для сущностей с [`Position`] + [`Camera`] + [`CameraLookTarget`] выставляет углы [`Camera`],
+/// чтобы взгляд был на мировую точку или на [`Position`] указанной сущности.
 pub fn camera_look_at_system(world: &mut World) {
     let items: Vec<(hecs::Entity, Vector3<f32>, CameraLookTarget)> =
         (&mut world.query::<(&Position, &Camera, &CameraLookTarget)>())
@@ -52,6 +52,83 @@ pub fn camera_look_at_system(world: &mut World) {
     }
 }
 
+fn light_radiance(light: &Light) -> Vector3<f32> {
+    Vector3::new(
+        light.color.r * light.intensity,
+        light.color.g * light.intensity,
+        light.color.b * light.intensity,
+    )
+}
+
+/// Собирает до [`MAX_DIRECTIONAL_LIGHTS`] направленных и [`MAX_POINT_LIGHTS`] точечных источников.
+fn collect_lights(world: &World) -> LightUpload {
+    let mut out = LightUpload::default();
+    for (e, (light,)) in world.query::<(&Light,)>().into_iter() {
+        let rad = light_radiance(light);
+        match light.kind {
+            LightKind::Directional { toward_light } => {
+                if out.dir_count < MAX_DIRECTIONAL_LIGHTS {
+                    out.dir_toward[out.dir_count] = toward_light;
+                    out.dir_radiance[out.dir_count] = rad;
+                    out.dir_count += 1;
+                }
+            }
+            LightKind::Point {
+                constant,
+                linear,
+                quadratic,
+            } => {
+                if out.point_count < MAX_POINT_LIGHTS
+                    && let Ok(pos) = world.get::<&Position>(e)
+                {
+                    out.point_pos[out.point_count] = pos.position;
+                    out.point_radiance[out.point_count] = rad;
+                    out.point_atten[out.point_count] = Vector3::new(constant, linear, quadratic);
+                    out.point_count += 1;
+                }
+            }
+        }
+    }
+    out
+}
+
+#[derive(Clone, Copy)]
+struct LightUpload {
+    dir_toward: [Vector3<f32>; MAX_DIRECTIONAL_LIGHTS],
+    dir_radiance: [Vector3<f32>; MAX_DIRECTIONAL_LIGHTS],
+    dir_count: usize,
+    point_pos: [Vector3<f32>; MAX_POINT_LIGHTS],
+    point_radiance: [Vector3<f32>; MAX_POINT_LIGHTS],
+    point_atten: [Vector3<f32>; MAX_POINT_LIGHTS],
+    point_count: usize,
+}
+
+impl Default for LightUpload {
+    fn default() -> Self {
+        Self {
+            dir_toward: [Vector3::new(0.0, 0.0, 0.0); MAX_DIRECTIONAL_LIGHTS],
+            dir_radiance: [Vector3::new(0.0, 0.0, 0.0); MAX_DIRECTIONAL_LIGHTS],
+            dir_count: 0,
+            point_pos: [Vector3::new(0.0, 0.0, 0.0); MAX_POINT_LIGHTS],
+            point_radiance: [Vector3::new(0.0, 0.0, 0.0); MAX_POINT_LIGHTS],
+            point_atten: [Vector3::new(0.0, 0.0, 0.0); MAX_POINT_LIGHTS],
+            point_count: 0,
+        }
+    }
+}
+
+impl LightUpload {
+    fn upload(&self, shader: &ShaderProgram) {
+        shader.set_frame_lights(
+            &self.dir_toward[..self.dir_count],
+            &self.dir_radiance[..self.dir_count],
+            &self.point_pos[..self.point_count],
+            &self.point_radiance[..self.point_count],
+            &self.point_atten[..self.point_count],
+        );
+    }
+}
+
 /// Рисует сущности с [`Position`] + [`RenderMesh`] + [`SpinAnimation`].
 ///
 /// - **Линии** — только цвет вершины (сетка), без материала.
@@ -63,6 +140,8 @@ pub fn camera_look_at_system(world: &mut World) {
 ///
 /// Полупрозрачные треугольники сортируются **от дальнего к ближнему** к камере (painter's algorithm): иначе при
 /// выключенной записи в Z-буфер задний объект ошибочно рисуется поверх переднего.
+///
+/// Источники [`Light`] в мире передаются во фрагментный шейдер (Blinn–Phong); сетка рисуется без учёта света.
 pub fn render_mesh_system(world: &mut World, shader: &ShaderProgram, aspect: f32) {
     let (vp, camera_eye) = if let Some((_, (pos, cam))) = (&mut world
         .query::<(&Position, &Camera)>())
@@ -85,7 +164,12 @@ pub fn render_mesh_system(world: &mut World, shader: &ShaderProgram, aspect: f32
         (view_projection_matrix(aspect), Vector3::new(0.0, 0.0, 2.8))
     };
 
+    let lights = collect_lights(world);
+
     shader.use_program();
+    shader.set_camera_pos(camera_eye);
+    lights.upload(shader);
+
     set_opaque_depth_blend();
 
     // --- Линии: вершинный цвет, без материала ---
@@ -103,7 +187,7 @@ pub fn render_mesh_system(world: &mut World, shader: &ShaderProgram, aspect: f32
         };
         let model = model_matrix(transform.position, yaw, pitch);
         let mvp = vp * model;
-        shader.set_mvp(&mvp);
+        shader.set_model_normal_mvp(&model, &mvp);
         render.mesh.draw(render.topology);
     }
 
@@ -125,8 +209,16 @@ pub fn render_mesh_system(world: &mut World, shader: &ShaderProgram, aspect: f32
         };
         let model = model_matrix(transform.position, yaw, pitch);
         let mvp = vp * model;
-        shader.set_mvp(&mvp);
+        shader.set_model_normal_mvp(&model, &mvp);
         shader.set_material_rgba(mat.color.r, mat.color.g, mat.color.b, mat.opacity);
+        shader.set_surface_lighting(
+            mat.surface.ambient,
+            mat.surface.diffuse,
+            mat.surface.specular_color.r,
+            mat.surface.specular_color.g,
+            mat.surface.specular_color.b,
+            mat.surface.shininess,
+        );
         render.mesh.draw(render.topology);
     }
 
@@ -167,8 +259,16 @@ pub fn render_mesh_system(world: &mut World, shader: &ShaderProgram, aspect: f32
         };
         let model = model_matrix(transform.position, yaw, pitch);
         let mvp = vp * model;
-        shader.set_mvp(&mvp);
+        shader.set_model_normal_mvp(&model, &mvp);
         shader.set_material_rgba(mat.color.r, mat.color.g, mat.color.b, mat.opacity);
+        shader.set_surface_lighting(
+            mat.surface.ambient,
+            mat.surface.diffuse,
+            mat.surface.specular_color.r,
+            mat.surface.specular_color.g,
+            mat.surface.specular_color.b,
+            mat.surface.shininess,
+        );
         render.mesh.draw(render.topology);
     }
 

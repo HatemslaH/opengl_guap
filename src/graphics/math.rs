@@ -1,8 +1,26 @@
 //! Математика кадра: VP, модельная матрица, упаковка `mat4` для OpenGL.
 
-use cgmath::{Deg, Matrix4, Point3, Rad, Vector3, perspective};
+use cgmath::{Deg, Matrix3, Matrix4, Point3, Rad, Vector3, perspective};
 
 /// Преобразует `cgmath::Matrix4` в 16 `f32` в **столбцовом** порядке для `glUniformMatrix4fv` / GLSL `mat4`.
+/// `mat3` для `glUniformMatrix3fv` / GLSL `mat3` (столбцы).
+pub fn matrix3_column_major(m: &Matrix3<f32>) -> [f32; 9] {
+    [
+        m.x.x, m.x.y, m.x.z, //
+        m.y.x, m.y.y, m.y.z, //
+        m.z.x, m.z.y, m.z.z, //
+    ]
+}
+
+/// Линейная часть модельной матрицы (без переноса): для ортогональных `model` (только поворот+сдвиг)
+/// этого достаточно для преобразования нормалей. При неравномерном масштабе нужна `inverse(transpose(mat3))`.
+pub fn normal_matrix3_from_model(model: &Matrix4<f32>) -> Matrix3<f32> {
+    Matrix3::new(
+        model.x.x, model.x.y, model.x.z, model.y.x, model.y.y, model.y.z, model.z.x, model.z.y,
+        model.z.z,
+    )
+}
+
 pub fn matrix4_column_major(m: &Matrix4<f32>) -> [f32; 16] {
     [
         m.x.x, m.x.y, m.x.z, m.x.w, //

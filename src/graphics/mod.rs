@@ -9,10 +9,11 @@ pub mod render_state;
 pub mod shader;
 
 pub use depth::enable_depth_test;
-pub use render_state::{set_opaque_depth_blend, set_transparent_depth_blend};
 pub use math::{
     camera_view_matrix, camera_view_projection_matrix, camera_yaw_pitch_deg_from_look_direction,
-    matrix4_column_major, model_matrix, view_projection_matrix,
+    matrix3_column_major, matrix4_column_major, model_matrix, normal_matrix3_from_model,
+    view_projection_matrix,
 };
 pub use mesh::{Mesh, MeshTopology};
-pub use shader::ShaderProgram;
+pub use render_state::{set_opaque_depth_blend, set_transparent_depth_blend};
+pub use shader::{MAX_DIRECTIONAL_LIGHTS, MAX_POINT_LIGHTS, ShaderProgram};

@@ -4,6 +4,7 @@ pub mod components;
 pub mod systems;
 
 pub use components::{
-    Camera, CameraLookTarget, Color, Material, Position, RenderMesh, SpinAnimation,
+    Camera, CameraLookTarget, Color, Light, LightKind, Material, Position, RenderMesh,
+    SpinAnimation, SurfaceLighting,
 };
 pub use systems::{camera_look_at_system, render_mesh_system, spin_animation_system};

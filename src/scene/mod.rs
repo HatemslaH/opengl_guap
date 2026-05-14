@@ -7,9 +7,13 @@ pub mod grid;
 pub mod spawn;
 
 pub use crate::ecs::{
-    Camera, CameraLookTarget, Color, Material, Position, RenderMesh, SpinAnimation,
+    Camera, CameraLookTarget, Color, Light, LightKind, Material, Position, RenderMesh,
+    SpinAnimation, SurfaceLighting,
 };
-pub use spawn::{spawn_camera, spawn_camera_with_look, spawn_coordinate_grid, spawn_cube};
+pub use spawn::{
+    spawn_camera, spawn_camera_with_look, spawn_coordinate_grid, spawn_cube,
+    spawn_directional_light, spawn_point_light,
+};
 
 use cgmath::Vector3;
 use hecs::{Entity, World};
@@ -74,6 +78,23 @@ impl Scene {
     pub fn with_demo() -> Self {
         let mut s = Self::new();
         spawn_coordinate_grid(&mut s.world, 8.0, 1.0);
+        spawn_directional_light(
+            &mut s.world,
+            Light::new(
+                LightKind::directional_toward_light(Vector3::new(0.4, 1.0, 0.35)),
+                Color::from_rgb8(255, 252, 235),
+                0.85,
+            ),
+        );
+        spawn_point_light(
+            &mut s.world,
+            Vector3::new(0.0, 1.0, 0.0),
+            Light::new(
+                LightKind::point_default_attenuation(),
+                Color::from_rgb8(152, 50, 51),
+                1.15,
+            ),
+        );
         let cube = spawn_cube(
             &mut s.world,
             Vector3::new(0.0, 0.0, 0.0),
