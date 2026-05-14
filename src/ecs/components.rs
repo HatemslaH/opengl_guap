@@ -2,17 +2,18 @@
 
 use crate::graphics::{Mesh, MeshTopology};
 use cgmath::Vector3;
+use hecs::Entity;
 
 /// Положение сущности в мире (центр модели в мировых координатах).
 #[derive(Clone, Debug)]
-pub struct Transform {
-    pub translation: Vector3<f32>,
+pub struct Position {
+    pub position: Vector3<f32>,
 }
 
-impl Default for Transform {
+impl Default for Position {
     fn default() -> Self {
         Self {
-            translation: Vector3::new(0.0, 0.0, 0.0),
+            position: Vector3::new(0.0, 0.0, 0.0),
         }
     }
 }
@@ -65,6 +66,9 @@ pub struct RenderMesh {
 /// `yaw_deg` и `pitch_deg` — в **градусах**: горизонтальный поворот вокруг Y и наклон вверх/вниз.
 /// Направление взгляда при `(0°, 0°)` совпадает с прежней камерой «с +Z на центр».
 ///
+/// Если на ту же сущность добавлен [`CameraLookTarget`], [`crate::ecs::systems::camera_look_at_system`]
+/// каждый кадр перезаписывает эти углы под цель.
+///
 /// Если в мире несколько сущностей с `Camera`, [`crate::ecs::systems::render_mesh_system`] берёт **первую**
 /// из обхода запроса — держите одну активную камеру или явно порядок спавна.
 #[derive(Clone, Debug)]
@@ -98,5 +102,28 @@ impl Camera {
             z_near,
             z_far,
         }
+    }
+}
+
+/// Цель взгляда для камеры: положите на ту же сущность, что и [`Camera`] + [`Transform`].
+/// Система [`crate::ecs::systems::camera_look_at_system`] каждый кадр перезаписывает `yaw_deg` / `pitch_deg`
+/// у [`Camera`], чтобы смотреть на точку или на другую сущность с [`Transform`].
+///
+/// Если цель — [`CameraLookTarget::Entity`] и сущность уже не в мире, углы не меняются.
+#[derive(Clone, Debug)]
+pub enum CameraLookTarget {
+    /// Фиксированная мировая точка (центр сцены, маркер и т.д.).
+    World(Vector3<f32>),
+    /// Центр [`Transform::translation`] другой сущности (например куба).
+    Entity(Entity),
+}
+
+impl CameraLookTarget {
+    pub fn world(point: Vector3<f32>) -> Self {
+        Self::World(point)
+    }
+
+    pub fn entity(target: Entity) -> Self {
+        Self::Entity(target)
     }
 }

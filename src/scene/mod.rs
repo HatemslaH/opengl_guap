@@ -6,11 +6,11 @@ pub mod cube;
 pub mod grid;
 pub mod spawn;
 
-pub use crate::ecs::{Camera, RenderMesh, SpinAnimation, Transform};
-pub use spawn::{spawn_camera, spawn_coordinate_grid, spawn_cube};
+pub use crate::ecs::{Camera, CameraLookTarget, Position, RenderMesh, SpinAnimation};
+pub use spawn::{spawn_camera, spawn_camera_with_look, spawn_coordinate_grid, spawn_cube};
 
 use cgmath::Vector3;
-use hecs::World;
+use hecs::{Entity, World};
 
 /// Удобная цепочка вместо старого `Box::new(Cube::new())`: позиция задаётся явно.
 ///
@@ -44,8 +44,8 @@ impl CubeSpawn {
     }
 
     /// Зарегистрировать сущность в мире.
-    pub fn spawn(self, scene: &mut Scene) {
-        spawn::spawn_cube(&mut scene.world, self.translation, self.spin);
+    pub fn spawn(self, scene: &mut Scene) -> Entity {
+        spawn::spawn_cube(&mut scene.world, self.translation, self.spin)
     }
 }
 
@@ -63,16 +63,17 @@ impl Scene {
 
     pub fn with_demo() -> Self {
         let mut s = Self::new();
-        spawn_camera(
-            &mut s.world,
-            Vector3::new(-2.0, 2.0, 2.8),
-            Camera::new(30.0, -20.0, 90.0, 0.1, 100.0),
-        );
         spawn_coordinate_grid(&mut s.world, 8.0, 1.0);
-        spawn_cube(
+        let cube = spawn_cube(
             &mut s.world,
             Vector3::new(0.0, 0.0, 0.0),
             SpinAnimation::disabled(),
+        );
+        spawn_camera_with_look(
+            &mut s.world,
+            Vector3::new(-2.0, 2.0, 2.8),
+            Camera::new(0.0, 0.0, 90.0, 0.1, 100.0),
+            CameraLookTarget::Entity(cube),
         );
         s
     }

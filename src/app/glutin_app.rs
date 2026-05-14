@@ -2,7 +2,7 @@
 //!
 //! Сюда не добавляют компоненты сущностей — только события окна и порядок систем.
 
-use crate::ecs::{render_mesh_system, spin_animation_system};
+use crate::ecs::{camera_look_at_system, render_mesh_system, spin_animation_system};
 use crate::graphics::{ShaderProgram, enable_depth_test};
 use crate::scene::Scene;
 use glutin::config::ConfigTemplateBuilder;
@@ -143,6 +143,7 @@ impl ApplicationHandler for GlutinApp {
 
                 if let (Some(shader), Some(scene)) = (&self.shader, &mut self.scene) {
                     spin_animation_system(&mut scene.world, dt);
+                    camera_look_at_system(&mut scene.world);
 
                     unsafe {
                         gl::ClearColor(0.1, 0.1, 0.15, 1.0);

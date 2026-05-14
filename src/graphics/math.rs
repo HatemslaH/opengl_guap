@@ -45,6 +45,24 @@ pub fn camera_view_matrix(eye: Vector3<f32>, yaw_rad: f32, pitch_rad: f32) -> Ma
     )
 }
 
+/// Углы камеры в градусах из вектора «куда смотреть» в мировых осях (то же соглашение yaw/pitch, что у [`camera_view_matrix`]).
+///
+/// Возвращает [`None`], если направление нулевое или почти вертикально вверх/вниз (неоднозначный `yaw`).
+pub fn camera_yaw_pitch_deg_from_look_direction(dir: Vector3<f32>) -> Option<(f32, f32)> {
+    let len_sq = dir.x * dir.x + dir.y * dir.y + dir.z * dir.z;
+    if len_sq < 1e-12 {
+        return None;
+    }
+    let d = dir / len_sq.sqrt();
+    let pitch_rad = d.y.clamp(-1.0, 1.0).asin();
+    let cos_pitch = pitch_rad.cos();
+    if cos_pitch.abs() < 1e-5 {
+        return None;
+    }
+    let yaw_rad = d.x.atan2(-d.z);
+    Some((yaw_rad.to_degrees(), pitch_rad.to_degrees()))
+}
+
 /// Полная матрица `proj * view` для камеры с заданным FOV и плоскостей отсечения.
 pub fn camera_view_projection_matrix(
     eye: Vector3<f32>,
