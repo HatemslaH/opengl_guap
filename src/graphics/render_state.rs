@@ -1,6 +1,6 @@
-//! Состояние конвейера для непрозрачной и прозрачной отрисовки.
+//! Render pipeline state for opaque and transparent rendering.
 
-/// Непрозрачные меши: запись в Z-буфер, без смешивания.
+/// Opaque meshes: writing to the Z-buffer, without blending.
 pub fn set_opaque_depth_blend() {
     unsafe {
         gl::DepthMask(gl::TRUE);
@@ -8,7 +8,7 @@ pub fn set_opaque_depth_blend() {
     }
 }
 
-/// Полупрозрачные меши: смешивание по альфе, без записи в глубину (типовой порядок после непрозрачного прохода).
+/// Transparent meshes: blending by alpha, without writing to the depth (typical order after the opaque pass).
 pub fn set_transparent_depth_blend() {
     unsafe {
         gl::Enable(gl::BLEND);

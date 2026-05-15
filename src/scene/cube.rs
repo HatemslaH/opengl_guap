@@ -1,6 +1,6 @@
-//! Куб: только геометрия вершин (модель в локальных координатах `±0.5`).
+//! Cube: only vertex geometry (model in local coordinates `±0.5`).
 
-/// Вершины: интерливинг `xyz` + `rgb` + `nxnynz`, 12 треугольников (6 граней × 2).
+/// Vertices: interleaving `xyz` + `rgb` + `nxnynz`, 12 triangles (6 faces × 2).
 pub fn build_cube_vertex_data() -> Vec<f32> {
     let mut v = Vec::with_capacity(36 * 9);
     let white = [1.0, 1.0, 1.0];

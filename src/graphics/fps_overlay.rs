@@ -1,4 +1,4 @@
-//! Текст FPS в левом верхнем углу окна (NDC, отдельная программа GL).
+//! Text FPS in the left upper corner of the window (NDC, separate GL program).
 
 use font8x8::{BASIC_FONTS, UnicodeFonts};
 use std::ffi::CString;
@@ -24,7 +24,7 @@ void main() {
 fn compile_shader(stage: u32, src: &str) -> u32 {
     unsafe {
         let id = gl::CreateShader(stage);
-        let c = CString::new(src).expect("GLSL без внутреннего NUL");
+        let c = CString::new(src).expect("GLSL without internal NUL");
         gl::ShaderSource(id, 1, &c.as_ptr(), std::ptr::null());
         gl::CompileShader(id);
         let mut ok: i32 = 0;
@@ -37,7 +37,7 @@ fn compile_shader(stage: u32, src: &str) -> u32 {
                 gl::GetShaderInfoLog(id, len, std::ptr::null_mut(), buf.as_mut_ptr().cast());
             }
             let msg = String::from_utf8_lossy(&buf);
-            panic!("FPS overlay: ошибка компиляции шейдера: {msg}");
+            panic!("FPS overlay: shader compilation error: {msg}");
         }
         id
     }
@@ -59,7 +59,7 @@ fn link_program(vs: u32, fs: u32) -> u32 {
                 gl::GetProgramInfoLog(id, len, std::ptr::null_mut(), buf.as_mut_ptr().cast());
             }
             let msg = String::from_utf8_lossy(&buf);
-            panic!("FPS overlay: ошибка линковки программы: {msg}");
+            panic!("FPS overlay: program linking error: {msg}");
         }
         gl::DeleteShader(vs);
         gl::DeleteShader(fs);
@@ -97,7 +97,7 @@ fn push_quad_pixels(
     }
 }
 
-/// Оверлей «FPS …» в левом верхнем углу; рисовать после сцены, поверх кадра.
+/// Overlay «FPS …» in the left upper corner; draw after the scene, on top of the frame.
 pub struct FpsOverlay {
     program: u32,
     vao: u32,
@@ -140,7 +140,7 @@ impl FpsOverlay {
         }
     }
 
-    /// Обновляет сглаженный FPS по `dt_secs` и рисует текст поверх кадра.
+    /// Updates the smoothed FPS by `dt_secs` and draws the text on top of the frame.
     pub fn draw(&mut self, width_px: u32, height_px: u32, dt_secs: f32) {
         let w = width_px.max(1) as f32;
         let h = height_px.max(1) as f32;
@@ -155,7 +155,7 @@ impl FpsOverlay {
         }
 
         let text = format!("FPS {:.0}", self.fps_ema.max(0.0));
-        let space = BASIC_FONTS.get(' ').expect("пробел в BASIC_FONTS");
+        let space = BASIC_FONTS.get(' ').expect("space in BASIC_FONTS");
 
         self.scratch.clear();
         let scale = 2.5_f32;

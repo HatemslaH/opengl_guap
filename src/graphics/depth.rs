@@ -1,6 +1,6 @@
-//! Включение теста глубины (Z-буфер).
+//! Enabling depth test (Z-buffer).
 
-/// Включает `GL_DEPTH_TEST` для корректного перекрытия ближних и дальних треугольников.
+/// Enables `GL_DEPTH_TEST` for correct overlapping of near and far triangles.
 pub fn enable_depth_test() {
     unsafe {
         gl::Enable(gl::DEPTH_TEST);

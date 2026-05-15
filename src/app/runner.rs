@@ -1,13 +1,13 @@
-//! Запуск `EventLoop` и приложения с обработчиком winit.
+//! Run `EventLoop` and application with winit handler.
 
 use crate::app::glutin_app::GlutinApp;
 use winit::event_loop::EventLoop;
 
-/// Точка входа библиотеки: создаёт цикл событий и передаёт управление [`GlutinApp`].
+/// Entry point of the library: creates an event loop and passes control to [`GlutinApp`].
 pub fn run() {
-    let event_loop = EventLoop::new().expect("не удалось создать EventLoop");
+    let event_loop = EventLoop::new().expect("failed to create EventLoop");
     let mut app = GlutinApp::new();
     event_loop
         .run_app(&mut app)
-        .expect("цикл событий завершился с ошибкой");
+        .expect("event loop terminated with an error");
 }

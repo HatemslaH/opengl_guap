@@ -1,14 +1,15 @@
-//! Учебный OpenGL 3.3 (Core) на Rust: окно через glutin/winit, простой рендер.
+//! Educational OpenGL 3.3 (Core) on Rust: window through glutin/winit, simple render.
 //!
-//! **С чего начать:** [`app::runner::run`] — точка входа. Логика окна в [`app::glutin_app`],
-//! низкоуровневый GL в [`graphics`], ECS и сущности в [`ecs`] и [`scene`].
+//! **Where to start:** [`app::runner::run`] — entry point. Window logic in [`app::glutin_app`],
+//! low-level GL in [`graphics`], ECS and entities in [`ecs`] and [`scene`].
 
 pub mod app;
 pub mod ecs;
+pub mod game;
 pub mod graphics;
 pub mod scene;
 
-/// Запуск цикла событий и рендера. Ошибки инициализации паникуют с русским сообщением (учебный код).
+/// Run the event loop and render. Errors during initialization panic with a Russian message (educational code).
 pub fn run() {
     app::runner::run();
 }

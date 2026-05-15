@@ -1,81 +1,139 @@
 # opengl_guap
 
-Учебный проект: окно **winit** + контекст **glutin**, рендер **OpenGL 3.3 Core** на Rust, сцена на **ECS** ([`hecs`](https://docs.rs/hecs/)).
+A small **Rust game-engine style** stack: **winit** windowing, **glutin** OpenGL context, **OpenGL 3.3 Core** rendering, and an **ECS** world built on [**hecs**](https://docs.rs/hecs/). The project is educational but organized like a miniature engine: **runtime** (`app`), **gameplay layer** (`game`), **simulation data** (`ecs` + `scene`), and **GPU layer** (`graphics`).
 
-## Сборка и запуск
+---
+
+## Features
+
+| Area | What you get |
+|------|----------------|
+| **Runtime** | Event loop, resize, GL surface/context, frame timing, optional FPS overlay |
+| **ECS** | `Position`, `Rotation`, `Scale`, `Camera`, `Light`, `Material`, `RenderMesh` |
+| **Scene** | `Scene` owns `hecs::World`; helpers spawn grid, cube, sphere, capsule, cylinder, lights, camera |
+| **Rendering** | Lit mesh shader, depth test, transparent/opaque blend helpers, model + view–projection math |
+| **Game layer** | Camera look-at target, keyboard orbit, scene-root yaw (demo) |
+
+---
+
+## Tech stack
+
+- **Rust** (edition 2024)
+- **OpenGL** via [`gl`](https://docs.rs/gl/)
+- **Window / context**: [`winit`](https://docs.rs/winit/), [`glutin`](https://docs.rs/glutin/), [`glutin-winit`](https://docs.rs/glutin-winit/)
+- **Math**: [`cgmath`](https://docs.rs/cgmath/)
+- **ECS**: [`hecs`](https://docs.rs/hecs/)
+
+---
+
+## Quick start
 
 ```bash
 cargo run
 ```
 
-Релиз:
+Release build:
 
 ```bash
 cargo run --release
 ```
 
-## Структура каталогов `src/`
+Default startup uses [`Scene::with_demo1`](src/scene/mod.rs): coordinate grid, several lit meshes, three point lights, and a camera that orbits with **W A S D** (see [Controls](#controls)).
 
-| Путь | Назначение |
-|------|------------|
-| [`main.rs`](src/main.rs) | Точка входа исполняемого файла: вызывает [`opengl_guap::run`](src/lib.rs). |
-| [`lib.rs`](src/lib.rs) | Корень крейта: `app`, `ecs`, `graphics`, `scene`. |
-| [`app/`](src/app/) | Цикл событий, окно, GL-контекст; вызов систем `spin_animation_system`, `camera_look_at_system` и `render_mesh_system`. |
-| [`ecs/`](src/ecs/) | Компоненты ([`Position`](src/ecs/components.rs), [`Material`](src/ecs/components.rs), [`SpinAnimation`](src/ecs/components.rs), [`RenderMesh`](src/ecs/components.rs)) и системы ([`systems.rs`](src/ecs/systems.rs)). |
-| [`graphics/`](src/graphics/) | Шейдеры, [`Mesh`](src/graphics/mesh.rs), матрицы [`view_projection_matrix`](src/graphics/math.rs) / [`model_matrix`](src/graphics/math.rs). |
-| [`scene/`](src/scene/) | [`Scene`](src/scene/mod.rs) = [`hecs::World`](https://docs.rs/hecs/), спавн сущностей ([`spawn.rs`](src/scene/spawn.rs)), геометрия куба/сетки. |
+Library entry point: [`opengl_guap::run`](src/lib.rs) → [`app::runner::run`](src/app/runner.rs).
 
-Комментарии на русском — в начале модулей (`//!`).
+---
 
-## ECS: как добавить куб в позицию
+## Architecture
 
-Сцена владеет [`Scene::world`](src/scene/mod.rs). Куб — сущность с `Position` + `RenderMesh` + `SpinAnimation` + опционально [`Material`](src/ecs/components.rs) (без материала треугольники куба не рисуются). У сетки вращение выключено, материал не нужен (линии, цвет вершин).
+Think of the crate in four layers (bottom = closest to hardware):
 
-**Вариант 1 — цепочка (аналог «собрать и добавить»):**
-
-```rust
-use cgmath::vec3;
-use opengl_guap::scene::{Color, Cube, Material, Scene, SpinAnimation};
-
-let mut scene = Scene::new();
-scene.spawn_grid_default();
-Cube::at(vec3(2.0, 0.0, -1.5))
-    .with_material(Material::opaque(Color::from_rgb8(200, 140, 90)))
-    .spawn(&mut scene);
-Cube::at(vec3(0.0, 0.5, 0.0))
-    .with_spin(SpinAnimation::demo_orbit())
-    .with_material(Material::opaque(Color::new(0.2, 0.85, 0.35)))
-    .spawn(&mut scene);
+```text
+┌─────────────────────────────────────────────┐
+│  app          Event loop, GlutinApp, timing │
+├─────────────────────────────────────────────┤
+│  game         Camera orbit, look-at, input  │
+├─────────────────────────────────────────────┤
+│  ecs + scene  Components, World, spawners   │
+├─────────────────────────────────────────────┤
+│  graphics     Shaders, meshes, GL state     │
+└─────────────────────────────────────────────┘
 ```
 
-**Вариант 2 — напрямую через `spawn_cube`:**
+- **`graphics`** — Shaders, VAO/VBO [`Mesh`](src/graphics/mesh.rs), [`ShaderProgram`](src/graphics/shader.rs), math helpers ([`model_matrix`](src/graphics/math.rs), view–projection, normals). No ECS types.
+- **`ecs`** — Reusable simulation/render components under [`src/ecs/components/`](src/ecs/components/) and systems under [`src/ecs/systems/`](src/ecs/systems/) (e.g. [`render_mesh_system`](src/ecs/systems/render.rs)).
+- **`scene`** — [`Scene`](src/scene/mod.rs) wraps `hecs::World` and documents demo scenes; [`spawn`](src/scene/spawn.rs) builds entities (camera, lights, primitives).
+- **`game`** — Gameplay-oriented pieces: [`CameraLookTarget`](src/game/components/camera_look_target.rs), [`CameraKeyboardOrbit`](src/game/components/camera_orbit.rs), keyboard state; systems in [`src/game/systems/`](src/game/systems/) are invoked from [`GlutinApp`](src/app/glutin_app.rs) in a fixed order.
+- **`app`** — [`GlutinApp`](src/app/glutin_app.rs) wires winit events to systems and `render_mesh_system`; owns the active [`Scene`](src/scene/mod.rs).
+
+Per-frame order (simplified): **camera orbit** → **camera look-at** → **optional scene-root yaw** → **clear** → **render meshes** → **FPS overlay** → **swap**.
+
+---
+
+## Controls
+
+| Input | Action |
+|-------|--------|
+| **W A S D** | Orbit camera (when demo spawns [`CameraKeyboardOrbit`](src/game/components/camera_orbit.rs)) |
+| **[** / **]** | Rotate demo scene root around world **Y** (meshes; lights stay in world space) |
+
+---
+
+## Module map (`src/`)
+
+| Path | Role |
+|------|------|
+| [`main.rs`](src/main.rs) | Binary entry: calls `opengl_guap::run()` |
+| [`lib.rs`](src/lib.rs) | Crate root: exports `app`, `ecs`, `game`, `graphics`, `scene` |
+| [`app/`](src/app/) | `EventLoop`, [`GlutinApp`](src/app/glutin_app.rs), [`runner`](src/app/runner.rs) |
+| [`ecs/`](src/ecs/) | ECS components and systems |
+| [`game/`](src/game/) | Camera/input helpers and their systems |
+| [`graphics/`](src/graphics/) | GL-facing rendering utilities |
+| [`scene/`](src/scene/) | `Scene`, geometry builders, [`spawn`](src/scene/spawn.rs) |
+
+Module-level `//!` comments in the repo are partly in Russian (course / lab style).
+
+---
+
+## Extending the “engine”
+
+### Spawn an entity
+
+Use helpers from [`scene::spawn`](src/scene/spawn.rs) or call [`World::spawn`](https://docs.rs/hecs/latest/hecs/struct.World.html#method.spawn) with a tuple of components. Lit triangle meshes need [`Material`](src/ecs/components/material.rs) (and matching vertex layout: position, color, normal — see existing primitives). The coordinate grid uses [`MeshTopology::Lines`](src/graphics/mesh.rs) and vertex color only.
+
+Example: add a cube with opaque material (adjust imports to match your module path):
 
 ```rust
-use cgmath::vec3;
-use opengl_guap::scene::{spawn_cube, Color, Material, Scene, SpinAnimation};
+use opengl_guap::ecs::{Material, Position, Scale};
+use opengl_guap::graphics::Color;
+use opengl_guap::scene::{spawn_cube, Scene};
 
 let mut scene = Scene::new();
 spawn_cube(
     &mut scene.world,
-    vec3(1.0, 0.0, 0.0),
-    SpinAnimation::disabled(),
-    Some(Material::opaque(Color::from_rgb8(255, 200, 50))),
+    Position::new(0.0, 0.5, 0.0),
+    None,
+    Some(Scale::new(1.0, 1.0, 1.0)),
+    Some(Material::opaque(Color::from_rgb8(90, 200, 120))),
 );
 ```
 
-## Анимация вращения (отключаемая)
+### Add a system
 
-Компонент [`SpinAnimation`](src/ecs/components.rs): поля `enabled`, `velocity_y`, `velocity_x`, накопленные `phase_*`. Система [`spin_animation_system`](src/ecs/systems.rs) обновляет фазы только если `enabled == true`. У сущности без вращения задайте [`SpinAnimation::disabled()`](src/ecs/components.rs).
+1. Implement a function `fn your_system(world: &mut hecs::World, …)`.
+2. If it is generic simulation/render logic, place it under `ecs/systems` and export it from [`ecs/systems/mod.rs`](src/ecs/systems/mod.rs).
+3. If it depends on game-specific components, prefer `game/systems`.
+4. Call it from [`GlutinApp::window_event`](src/app/glutin_app.rs) in the redraw path, **before** or **after** other systems depending on dependencies (e.g. camera before rendering).
 
-Камера и сетка **не** вращаются вместе с объектом: в MVP входит только `view_projection_matrix` × **модель** сущности.
+### Add a mesh primitive
 
-## Как добавить другую фигуру
+1. Build interleaved vertex data like [`build_cube_vertex_data`](src/scene/cube.rs) (position + color + normal for lit shaders).
+2. Wrap with [`Mesh::new_interleaved_pos3_color3_normal3`](src/graphics/mesh.rs).
+3. Spawn `(Position, Option<Rotation>, Option<Scale>, RenderMesh { mesh, topology }, Option<Material>)` as appropriate.
 
-1. Опишите вершины (как [`build_cube_vertex_data`](src/scene/cube.rs)) и создайте [`Mesh`](src/graphics/mesh.rs).
-2. Вызовите [`hecs::World::spawn`](https://docs.rs/hecs/latest/hecs/struct.World.html#method.spawn) с кортежем `(Position { position: ... }, RenderMesh { mesh, topology }, SpinAnimation::disabled())` и при отрисовке треугольников — [`Material`](src/ecs/components.rs) (или со своей анимацией).
-3. При необходимости добавьте новые системы в [`ecs/systems.rs`](src/ecs/systems.rs) и вызовите их из [`GlutinApp`](src/app/glutin_app.rs) в нужном порядке.
+---
 
-## Проверки
+## Development
 
 ```bash
 cargo fmt
@@ -83,3 +141,9 @@ cargo check
 cargo clippy -- -D warnings
 cargo test
 ```
+
+---
+
+## License / status
+
+Educational project; version **0.1.0** — APIs and folder layout may change as features grow.

@@ -1,9 +1,9 @@
-//! Математика кадра: VP, модельная матрица, упаковка `mat4` для OpenGL.
+//! Frame math: VP, model matrix, packing `mat4` for OpenGL.
 
 use cgmath::{Deg, Matrix, Matrix3, Matrix4, Point3, Rad, SquareMatrix, Vector3, perspective};
 
-/// Преобразует `cgmath::Matrix4` в 16 `f32` в **столбцовом** порядке для `glUniformMatrix4fv` / GLSL `mat4`.
-/// `mat3` для `glUniformMatrix3fv` / GLSL `mat3` (столбцы).
+/// Converts `cgmath::Matrix4` to 16 `f32` in **column-major** order for `glUniformMatrix4fv` / GLSL `mat4`.
+/// `mat3` for `glUniformMatrix3fv` / GLSL `mat3` (columns).
 pub fn matrix3_column_major(m: &Matrix3<f32>) -> [f32; 9] {
     [
         m.x.x, m.x.y, m.x.z, //
@@ -12,8 +12,8 @@ pub fn matrix3_column_major(m: &Matrix3<f32>) -> [f32; 9] {
     ]
 }
 
-/// Матрица нормалей: транспонированная обратная к верхней левой `3×3` у `model`
-/// (для равномерного масштаба и чистого поворота совпадает с линейной частью `model`).
+/// Normal matrix: transposed inverse of the top left `3×3` of `model`
+/// (for uniform scale and pure rotation coincides with the linear part of `model`).
 pub fn normal_matrix3_from_model(model: &Matrix4<f32>) -> Matrix3<f32> {
     let m = Matrix3::new(
         model.x.x, model.x.y, model.x.z, //
@@ -34,7 +34,7 @@ pub fn matrix4_column_major(m: &Matrix4<f32>) -> [f32; 16] {
     ]
 }
 
-/// Матрица `proj * view` (камера не «вшита» в модель — вращение задаётся на сущности).
+/// Matrix `proj * view` (the camera is not «embedded» in the model — the rotation is set on the entity).
 pub fn view_projection_matrix(aspect: f32) -> Matrix4<f32> {
     camera_view_projection_matrix(
         Vector3::new(0.0, 0.0, 2.8),
@@ -47,7 +47,7 @@ pub fn view_projection_matrix(aspect: f32) -> Matrix4<f32> {
     )
 }
 
-/// Направление взгляда в мировых координатах: `yaw` / `pitch` в радианах (как у FPS-камеры).
+/// The look direction in world coordinates: `yaw` / `pitch` in radians (like the FPS camera).
 fn camera_forward_world(yaw_rad: f32, pitch_rad: f32) -> Vector3<f32> {
     Vector3::new(
         yaw_rad.sin() * pitch_rad.cos(),
@@ -56,7 +56,7 @@ fn camera_forward_world(yaw_rad: f32, pitch_rad: f32) -> Vector3<f32> {
     )
 }
 
-/// Матрица вида: позиция `eye`, ориентация через `yaw`/`pitch`, мир праворукий.
+/// View matrix: position `eye`, orientation through `yaw`/`pitch`, world right-handed.
 pub fn camera_view_matrix(eye: Vector3<f32>, yaw_rad: f32, pitch_rad: f32) -> Matrix4<f32> {
     let f = camera_forward_world(yaw_rad, pitch_rad);
     let target = Point3::new(eye.x + f.x, eye.y + f.y, eye.z + f.z);
@@ -67,9 +67,9 @@ pub fn camera_view_matrix(eye: Vector3<f32>, yaw_rad: f32, pitch_rad: f32) -> Ma
     )
 }
 
-/// Углы камеры в градусах из вектора «куда смотреть» в мировых осях (то же соглашение yaw/pitch, что у [`camera_view_matrix`]).
+/// Camera angles in degrees from the vector «looking at» in world axes (the same yaw/pitch convention as [`camera_view_matrix`]).
 ///
-/// Возвращает [`None`], если направление нулевое или почти вертикально вверх/вниз (неоднозначный `yaw`).
+/// Returns [`None`], if the direction is zero or almost vertical up/down (ambiguous `yaw`).
 pub fn camera_yaw_pitch_deg_from_look_direction(dir: Vector3<f32>) -> Option<(f32, f32)> {
     let len_sq = dir.x * dir.x + dir.y * dir.y + dir.z * dir.z;
     if len_sq < 1e-12 {
@@ -85,7 +85,7 @@ pub fn camera_yaw_pitch_deg_from_look_direction(dir: Vector3<f32>) -> Option<(f3
     Some((yaw_rad.to_degrees(), pitch_rad.to_degrees()))
 }
 
-/// Полная матрица `proj * view` для камеры с заданным FOV и плоскостей отсечения.
+/// Full matrix `proj * view` for a camera with a given FOV and clipping planes.
 pub fn camera_view_projection_matrix(
     eye: Vector3<f32>,
     yaw_rad: f32,
@@ -100,7 +100,7 @@ pub fn camera_view_projection_matrix(
     proj * view
 }
 
-/// Позиция глаза на сфере вокруг `target`: взгляд на цель с углами [`camera_view_matrix`] (`yaw` / `pitch` в **градусах**) на расстоянии `distance`.
+/// The eye position on the sphere around `target`: looking at the target with the angles [`camera_view_matrix`] (`yaw` / `pitch` in **degrees**) at a distance `distance`.
 #[inline]
 pub fn camera_eye_for_look_at_target(
     target: Vector3<f32>,
@@ -112,7 +112,7 @@ pub fn camera_eye_for_look_at_target(
     target - f * distance
 }
 
-/// Локальная модель: перенос + поворот вокруг Y, X, Z (углы `rotation_deg` в **градусах**: `.y`, `.x`, `.z`), затем масштаб.
+/// Local model: translation + rotation around Y, X, Z (angles `rotation_deg` in **degrees**: `.y`, `.x`, `.z`), then scale.
 pub fn model_matrix(
     translation: Vector3<f32>,
     rotation_deg: Vector3<f32>,

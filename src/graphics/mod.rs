@@ -1,7 +1,8 @@
-//! Низкоуровневая графика: шейдеры, меши (VAO/VBO), математика для GPU, тест глубины.
+//! Low-level graphics: shaders, meshes (VAO/VBO), math for GPU, depth test.
 //!
-//! Сюда не кладут игровую логику и ECS — только примитивы рендера.
+//! Here we don't put game logic and ECS — only render primitives.
 
+pub mod color;
 pub mod depth;
 pub mod fps_overlay;
 pub mod math;
@@ -9,6 +10,7 @@ pub mod mesh;
 pub mod render_state;
 pub mod shader;
 
+pub use color::Color;
 pub use depth::enable_depth_test;
 pub use fps_overlay::FpsOverlay;
 pub use math::{

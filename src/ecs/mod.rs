@@ -3,11 +3,12 @@
 pub mod components;
 pub mod systems;
 
-pub use components::{
-    Camera, CameraKeyboardOrbit, CameraLookTarget, Color, KeyboardOrbitKeys, KeyboardSceneRootKeys,
-    Light, LightKind, Material, Position, RenderMesh, Rotation, Scale, SpinAnimation,
-    SurfaceLighting,
-};
-pub use systems::{
-    camera_keyboard_orbit_system, camera_look_at_system, render_mesh_system, spin_animation_system,
-};
+pub use components::Camera;
+pub use components::Light;
+pub use components::LightKind;
+pub use components::Material;
+pub use components::Position;
+pub use components::RenderMesh;
+pub use components::Rotation;
+pub use components::Scale;
+pub use components::SurfaceLighting;

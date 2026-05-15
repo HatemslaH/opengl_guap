@@ -1,11 +1,11 @@
-//! Координатная сетка: генерация вершин для линий на плоскости XZ и осей.
+//! Coordinate grid: generation of vertices for lines on the XZ plane and axes.
 
 const AXIS_RED: [f32; 3] = [0.92, 0.25, 0.22];
 const AXIS_GREEN: [f32; 3] = [0.28, 0.9, 0.32];
 const AXIS_BLUE: [f32; 3] = [0.28, 0.45, 0.95];
 const GRID_GRAY: [f32; 3] = [0.38, 0.4, 0.48];
 
-/// Вершины для `GL_LINES`: оси + сетка на плоскости `y = 0`.
+/// Vertices for `GL_LINES`: axes + grid on the plane `y = 0`.
 pub fn build_grid_vertices(half_extent: f32, step: f32) -> Vec<f32> {
     let mut v = Vec::new();
 

@@ -1,17 +1,17 @@
-//! VAO/VBO и отрисовка примитивов: треугольники (`GL_TRIANGLES`) и линии (`GL_LINES`).
+//! VAO/VBO and drawing primitives: triangles (`GL_TRIANGLES`) and lines (`GL_LINES`).
 
 use std::ffi::c_void;
 
-/// Как интерпретировать вершины при вызове [`Mesh::draw`].
+/// How to interpret vertices when calling [`Mesh::draw`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MeshTopology {
     Triangles,
     Lines,
 }
 
-/// Интерливинг `vec3 позиция` + `vec3 цвет` на вершину, два атрибута с индексами 0 и 1.
+/// Interleaving `vec3 position` + `vec3 color` per vertex, two attributes with indices 0 and 1.
 ///
-/// Для освещённых треугольников см. [`Mesh::new_interleaved_pos3_color3_normal3`] (атрибут 2 — нормаль).
+/// For lighted triangles see [`Mesh::new_interleaved_pos3_color3_normal3`] (attribute 2 — normal).
 pub struct Mesh {
     vao: u32,
     _vbo: u32,
@@ -19,12 +19,12 @@ pub struct Mesh {
 }
 
 impl Mesh {
-    /// `vertices` — последовательность `[x,y,z,r,g,b, ...]`; `vertex_count` — число вершин (не число float).
+    /// `vertices` — sequence `[x,y,z,r,g,b, ...]`; `vertex_count` — number of vertices (not number of float).
     pub fn new_interleaved_pos3_color3(vertices: &[f32], vertex_count: usize) -> Self {
         debug_assert_eq!(
             vertices.len(),
             vertex_count * 6,
-            "ожидается 6 float на вершину (xyz + rgb)"
+            "expected 6 float per vertex (xyz + rgb)"
         );
 
         let stride = (6 * std::mem::size_of::<f32>()) as i32;
@@ -59,12 +59,12 @@ impl Mesh {
         }
     }
 
-    /// `vertices` — `[x,y,z, r,g,b, nx,ny,nz, ...]`; `vertex_count` — число вершин.
+    /// `vertices` — `[x,y,z, r,g,b, nx,ny,nz, ...]`; `vertex_count` — number of vertices.
     pub fn new_interleaved_pos3_color3_normal3(vertices: &[f32], vertex_count: usize) -> Self {
         debug_assert_eq!(
             vertices.len(),
             vertex_count * 9,
-            "ожидается 9 float на вершину (xyz + rgb + normal)"
+            "expected 9 float per vertex (xyz + rgb + normal)"
         );
 
         let stride = (9 * std::mem::size_of::<f32>()) as i32;
@@ -110,7 +110,7 @@ impl Mesh {
         }
     }
 
-    /// Рисует треугольники; шейдер и uniform должны быть уже настроены вызывающим кодом.
+    /// Draws triangles; the shader and uniform must already be set by the calling code.
     pub fn draw_triangles(&self) {
         unsafe {
             gl::BindVertexArray(self.vao);
@@ -118,12 +118,12 @@ impl Mesh {
         }
     }
 
-    /// Рисует отрезки линий; число вершин должно быть **чётным** (каждая пара — один отрезок).
+    /// Draws lines; the number of vertices must be **even** (each pair — one line).
     pub fn draw_lines(&self) {
         debug_assert_eq!(
             self.vertex_count % 2,
             0,
-            "GL_LINES: нужно чётное число вершин"
+            "GL_LINES: even number of vertices required"
         );
         unsafe {
             gl::BindVertexArray(self.vao);

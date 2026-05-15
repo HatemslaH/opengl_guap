@@ -1,4 +1,4 @@
-//! Сфера: UV-сетка в локальных координатах, центр в начале координат.
+//! Sphere: UV-grid in local coordinates, center at the origin.
 
 use std::f32::consts::PI;
 
@@ -11,7 +11,7 @@ fn push_vertex(v: &mut Vec<f32>, p: [f32; 3], c: [f32; 3], n: [f32; 3]) {
 }
 
 /// `latitude_segments` ≥ 2, `longitude_segments` ≥ 3.
-/// Интерливинг `xyz` + `rgb` + `nxnynz`; нормали — сглаженные (от центра сферы).
+/// Interleaving `xyz` + `rgb` + `nxnynz`; normals are smoothed (from the center of the sphere).
 pub fn build_sphere_vertex_data(
     radius: f32,
     latitude_segments: u32,

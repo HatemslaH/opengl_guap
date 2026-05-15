@@ -1,11 +1,10 @@
-//! Окно, поверхность OpenGL, контекст и связка с ECS-сценой.
+//! Window, OpenGL surface, context and binding with ECS scene.
 //!
-//! Сюда не добавляют компоненты сущностей — только события окна и порядок систем.
+//! Here we don't add entity components — only window events and system order.
 
-use crate::ecs::{
-    KeyboardOrbitKeys, KeyboardSceneRootKeys, camera_keyboard_orbit_system, camera_look_at_system,
-    render_mesh_system, spin_animation_system,
-};
+use crate::ecs::systems::render_mesh_system;
+use crate::game::components::{KeyboardOrbitKeys, KeyboardSceneRootKeys};
+use crate::game::systems::{camera_keyboard_orbit_system, camera_look_at_system};
 use crate::graphics::{FpsOverlay, ShaderProgram, enable_depth_test};
 use crate::scene::Scene;
 use glutin::config::ConfigTemplateBuilder;
@@ -31,11 +30,11 @@ pub struct GlutinApp {
     shader: Option<ShaderProgram>,
     fps_overlay: Option<FpsOverlay>,
     scene: Option<Scene>,
-    /// Момент конца предыдущего кадра (для `dt` анимации и FPS).
+    /// Moment of the end of the previous frame (for `dt` animation and FPS).
     last_frame_instant: Option<Instant>,
     orbit_keys: KeyboardOrbitKeys,
     scene_keys: KeyboardSceneRootKeys,
-    /// Поворот всех мешей вокруг мировой оси Y (градусы); источники света в мире неподвижны.
+    /// Rotation of all meshes around the world axis Y (degrees); light sources are stationary in the world.
     scene_root_yaw_deg: f32,
 }
 
@@ -78,12 +77,12 @@ impl ApplicationHandler for GlutinApp {
                             b
                         }
                     })
-                    .expect("нет подходящего конфига OpenGL")
+                    .expect("no suitable OpenGL config")
             })
-            .expect("не удалось собрать окно и дисплей");
+            .expect("failed to collect window and display");
 
-        let window = window.expect("окно должно быть создано вместе с дисплеем");
-        let raw_handle = window.window_handle().expect("окно без raw handle");
+        let window = window.expect("window should be created together with the display");
+        let raw_handle = window.window_handle().expect("window without raw handle");
         let display = gl_config.display();
 
         let context_attrs = ContextAttributesBuilder::new().build(Some(raw_handle.as_raw()));
@@ -91,34 +90,34 @@ impl ApplicationHandler for GlutinApp {
         let gl_context = unsafe {
             display
                 .create_context(&gl_config, &context_attrs)
-                .expect("не удалось создать контекст OpenGL")
+                .expect("failed to create OpenGL context")
         };
 
         let (width, height): (u32, u32) = window.inner_size().into();
         let surface_attrs = SurfaceAttributesBuilder::<WindowSurface>::new().build(
             raw_handle.as_raw(),
-            NonZeroU32::new(width).expect("ширина окна не нулевая"),
-            NonZeroU32::new(height).expect("высота окна не нулевая"),
+            NonZeroU32::new(width).expect("window width is not zero"),
+            NonZeroU32::new(height).expect("window height is not zero"),
         );
 
         let gl_surface = unsafe {
             display
                 .create_window_surface(&gl_config, &surface_attrs)
-                .expect("не удалось создать поверхность окна")
+                .expect("failed to create window surface")
         };
 
         let gl_context = gl_context
             .make_current(&gl_surface)
-            .expect("не удалось сделать контекст текущим");
+            .expect("failed to make context current");
 
         if let Err(e) = gl_surface.set_swap_interval(&gl_context, SwapInterval::DontWait) {
             eprintln!(
-                "Не удалось отключить V-Sync: {e:?}. Счётчик FPS будет около частоты монитора (~144 Гц)."
+                "Failed to disable V-Sync: {e:?}. FPS counter will be around the monitor frequency (~144 Hz)."
             );
         }
 
         gl::load_with(|s| {
-            let s = CString::new(s).expect("имя функции GL без внутреннего NUL");
+            let s = CString::new(s).expect("GL function name without internal NUL");
             display.get_proc_address(&s)
         });
 
@@ -163,7 +162,6 @@ impl ApplicationHandler for GlutinApp {
                 let aspect = w_px as f32 / h_px as f32;
 
                 if let (Some(shader), Some(scene)) = (&self.shader, &mut self.scene) {
-                    spin_animation_system(&mut scene.world, dt);
                     camera_keyboard_orbit_system(&mut scene.world, &self.orbit_keys, dt);
                     camera_look_at_system(&mut scene.world);
 
@@ -187,7 +185,7 @@ impl ApplicationHandler for GlutinApp {
                 }
 
                 if let (Some(ctx), Some(surface)) = (&self.gl_context, &self.gl_surface) {
-                    surface.swap_buffers(ctx).expect("обмен буферов окна");
+                    surface.swap_buffers(ctx).expect("window buffer swap");
                 }
 
                 if let Some(w) = &self.window {
@@ -218,8 +216,8 @@ impl ApplicationHandler for GlutinApp {
             }
 
             WindowEvent::Resized(size) => {
-                let nw = NonZeroU32::new(size.width.max(1)).expect("ширина после resize");
-                let nh = NonZeroU32::new(size.height.max(1)).expect("высота после resize");
+                let nw = NonZeroU32::new(size.width.max(1)).expect("window width after resize");
+                let nh = NonZeroU32::new(size.height.max(1)).expect("window height after resize");
                 if let (Some(ctx), Some(surface)) = (&self.gl_context, &self.gl_surface) {
                     surface.resize(ctx, nw, nh);
                 }

@@ -1,4 +1,4 @@
-//! Цилиндр вдоль оси Y: дно, бок, крышка (локально центр на середине высоты).
+//! Cylinder along the Y axis: bottom, side, top (locally centered in the middle of the height).
 
 use std::f32::consts::PI;
 
@@ -10,9 +10,9 @@ fn push_vertex(v: &mut Vec<f32>, p: [f32; 3], c: [f32; 3], n: [f32; 3]) {
     ]);
 }
 
-/// От `y = -half_height` до `y = +half_height`, радиус `radius`. `sectors` ≥ 3.
+/// From `y = -half_height` to `y = +half_height`, radius `radius`. `sectors` ≥ 3.
 ///
-/// `include_caps` — плоские диски сверху и снизу (для капсулы обычно `false`, стык с полусферами).
+/// `include_caps` — flat disks on top and bottom (for a capsule usually `false`, junction with hemispheres).
 pub fn build_cylinder_vertex_data(
     radius: f32,
     half_height: f32,
@@ -24,7 +24,7 @@ pub fn build_cylinder_vertex_data(
     let cap_tris = if include_caps { nsec as usize * 2 } else { 0 };
     let mut v = Vec::with_capacity((nsec as usize * 2 + cap_tris) * 9);
 
-    // Боковая поверхность
+    // Side surface
     for j in 0..nsec {
         let u0 = j as f32 / nsec as f32;
         let u1 = (j + 1) as f32 / nsec as f32;
@@ -51,7 +51,7 @@ pub fn build_cylinder_vertex_data(
     }
 
     if include_caps {
-        // Нижняя крышка (y = -half_height), нормаль -Y
+        // Bottom cap (y = -half_height), normal -Y
         let n_bot = [0.0_f32, -1.0, 0.0];
         let center_bot = [0.0_f32, -half_height, 0.0];
         for j in 0..nsec {
@@ -68,7 +68,7 @@ pub fn build_cylinder_vertex_data(
             push_vertex(&mut v, p0, white, n_bot);
         }
 
-        // Верхняя крышка (y = +half_height), нормаль +Y
+        // Top cap (y = +half_height), normal +Y
         let n_top = [0.0_f32, 1.0, 0.0];
         let center_top = [0.0_f32, half_height, 0.0];
         for j in 0..nsec {

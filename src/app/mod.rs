@@ -1,6 +1,6 @@
-//! Окно, контекст OpenGL и цикл winit/glutin.
+//! Window, OpenGL context and winit/glutin event loop.
 //!
-//! Не добавляйте сюда описание вершин куба и т.п. — это [`crate::scene`].
+//! Here we don't add vertex descriptions of the cube and etc. — this is [`crate::scene`].
 
 pub mod glutin_app;
 pub mod runner;

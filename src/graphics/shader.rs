@@ -1,4 +1,4 @@
-//! Компиляция и линковка GLSL, работа с uniform.
+//! Compilation and linking GLSL, working with uniform.
 
 use crate::graphics::math::{
     matrix3_column_major, matrix4_column_major, normal_matrix3_from_model,
@@ -6,9 +6,9 @@ use crate::graphics::math::{
 use cgmath::{Matrix4, Vector3};
 use std::ffi::CString;
 
-/// Максимум направленных источников за кадр (массивы в шейдере).
+/// Maximum number of directional lights per frame (arrays in the shader).
 pub const MAX_DIRECTIONAL_LIGHTS: usize = 4;
-/// Максимум точечных источников за кадр.
+/// Maximum number of point lights per frame.
 pub const MAX_POINT_LIGHTS: usize = 8;
 
 const VERT_SRC: &str = r#"
@@ -87,7 +87,7 @@ const FRAG_SRC: &str = r#"
 "#;
 
 fn uniform_location(program: u32, name: &str) -> i32 {
-    let c = CString::new(name).expect("имя uniform без NUL");
+    let c = CString::new(name).expect("uniform name without NUL");
     unsafe { gl::GetUniformLocation(program, c.as_ptr()) }
 }
 
@@ -97,7 +97,7 @@ fn uniform_vec3_array(program: u32, base: &str, len: usize) -> Vec<i32> {
         .collect()
 }
 
-/// Связанная программа OpenGL и известные uniform-локации.
+/// Linked OpenGL program and known uniform locations.
 pub struct ShaderProgram {
     id: u32,
     mvp_location: i32,
@@ -121,16 +121,16 @@ pub struct ShaderProgram {
 }
 
 impl ShaderProgram {
-    /// Создаёт программу с парой шейдеров позиция+цвет+нормаль и освещением Blinn–Phong.
+    /// Creates a program with a pair of vertex+color+normal and Blinn–Phong lighting shaders.
     pub fn new_colored_mesh() -> Self {
         unsafe {
             let vs = gl::CreateShader(gl::VERTEX_SHADER);
-            let src = CString::new(VERT_SRC).expect("исходник вершинного шейдера без NUL");
+            let src = CString::new(VERT_SRC).expect("vertex shader source without NUL");
             gl::ShaderSource(vs, 1, &src.as_ptr(), std::ptr::null());
             gl::CompileShader(vs);
 
             let fs = gl::CreateShader(gl::FRAGMENT_SHADER);
-            let src = CString::new(FRAG_SRC).expect("исходник фрагментного шейдера без NUL");
+            let src = CString::new(FRAG_SRC).expect("fragment shader source without NUL");
             gl::ShaderSource(fs, 1, &src.as_ptr(), std::ptr::null());
             gl::CompileShader(fs);
 
@@ -198,7 +198,7 @@ impl ShaderProgram {
         }
     }
 
-    /// Модельная матрица, матрица нормалей (3×3) и `proj * view * model` для `gl_Position`.
+    /// Model matrix, normal matrix (3×3) and `proj * view * model` for `gl_Position`.
     pub fn set_model_normal_mvp(&self, model: &Matrix4<f32>, mvp: &Matrix4<f32>) {
         let nm = normal_matrix3_from_model(model);
         let cols3 = matrix3_column_major(&nm);
@@ -211,7 +211,7 @@ impl ShaderProgram {
         }
     }
 
-    /// Только `uMVP` (например если модель и нормали уже выставлены).
+    /// Only `uMVP` (if the model and normals are already set).
     pub fn set_mvp(&self, mvp: &Matrix4<f32>) {
         let cols = matrix4_column_major(mvp);
         unsafe {
@@ -235,7 +235,7 @@ impl ShaderProgram {
         }
     }
 
-    /// `true` — фрагментный цвет из атрибута вершины (линии сетки); `false` — освещённый материал.
+    /// `true` — fragment color from the vertex attribute (grid lines); `false` — lighted material.
     pub fn set_vertex_color_mode(&self, use_vertex_color: bool) {
         unsafe {
             gl::Uniform1i(
@@ -269,7 +269,7 @@ impl ShaderProgram {
         }
     }
 
-    /// Заполняет uniform’ы источников; срезы уже обрезаны по лимитам шейдера.
+    /// Fills the uniform sources; slices are already truncated by the shader limits.
     pub fn set_frame_lights(
         &self,
         dir_toward: &[Vector3<f32>],

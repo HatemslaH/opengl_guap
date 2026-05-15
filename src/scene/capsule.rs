@@ -1,4 +1,4 @@
-//! Капсула вдоль Y: нижняя полусфера, цилиндрический ствол, верхняя полусфера.
+//! Capsule along Y: lower hemisphere, cylindrical stem, upper hemisphere.
 
 use std::f32::consts::FRAC_PI_2;
 
@@ -20,10 +20,10 @@ fn append_hemisphere_y(
         let v0 = i as f32 / lat as f32;
         let v1 = (i + 1) as f32 / lat as f32;
         let (lat0, lat1) = if bottom {
-            // От южного полюса (-π/2) к экватору (0)
+            // From the south pole (-π/2) to the equator (0)
             (-FRAC_PI_2 + v0 * FRAC_PI_2, -FRAC_PI_2 + v1 * FRAC_PI_2)
         } else {
-            // От экватора (0) к северному полюсу (+π/2)
+            // From the equator (0) to the north pole (+π/2)
             (v0 * FRAC_PI_2, v1 * FRAC_PI_2)
         };
         let (sin_lat0, cos_lat0) = lat0.sin_cos();
@@ -121,8 +121,8 @@ fn push_lit_tri(v: &mut Vec<f32>, a: [f32; 9], b: [f32; 9], c: [f32; 9]) {
     v.extend_from_slice(&c);
 }
 
-/// `cylinder_half_height` — половина длины прямого участка (между экваторами сфер).
-/// Полные полусферы радиуса `radius` центрированы в `y = ±cylinder_half_height`.
+/// `cylinder_half_height` — half the length of the straight section (between the equator of the spheres).
+/// Full hemispheres of radius `radius` centered at `y = ±cylinder_half_height`.
 pub fn build_capsule_vertex_data(
     radius: f32,
     cylinder_half_height: f32,
