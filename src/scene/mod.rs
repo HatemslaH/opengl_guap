@@ -2,12 +2,16 @@
 //!
 //! Рендер и анимация — в [`crate::ecs::systems`], не здесь.
 //!
-//! Демо [`Scene::with_demo`]: три разноцветных точечных света, несколько кубов с одним альбедо и разными
-//! [`SurfaceLighting`]; вращение группы мешей вокруг оси Y — клавиши **[** / **]** (обработка в [`GlutinApp`](crate::app::glutin_app::GlutinApp)).
+//! Демо [`Scene::with_demo1`]: три разноцветных точечных света, куб и примитивы (сфера, капсула, цилиндр)
+//! с одним альбедо и разными [`SurfaceLighting`]; вращение группы мешей вокруг оси Y — клавиши **[** / **]**
+//! (обработка в [`GlutinApp`](crate::app::glutin_app::GlutinApp)).
 
+pub mod capsule;
 pub mod cube;
+pub mod cylinder;
 pub mod grid;
 pub mod spawn;
+pub mod sphere;
 
 pub use crate::ecs::{
     Camera, CameraKeyboardOrbit, CameraLookTarget, Color, KeyboardOrbitKeys, KeyboardSceneRootKeys,
@@ -15,8 +19,9 @@ pub use crate::ecs::{
     SurfaceLighting,
 };
 pub use spawn::{
-    spawn_camera, spawn_camera_with_look, spawn_camera_with_look_and_keyboard_orbit,
-    spawn_coordinate_grid, spawn_cube, spawn_directional_light, spawn_point_light,
+    spawn_camera, spawn_camera_with_look, spawn_camera_with_look_and_keyboard_orbit, spawn_capsule,
+    spawn_coordinate_grid, spawn_cube, spawn_cylinder, spawn_directional_light, spawn_point_light,
+    spawn_sphere,
 };
 
 use cgmath::Vector3;
@@ -89,13 +94,13 @@ impl Scene {
     pub fn with_demo0() -> Self {
         let mut s = Self::new();
 
-        let cube = spawn_cube(
+        let cube = spawn_capsule(
             &mut s.world,
             Vector3::new(0.0, 0.0, 0.0),
             None,
             Some(Scale::new(1.0, 1.0, 1.0)),
             SpinAnimation::disabled(),
-            Some(Material::opaque(Color::from_rgb8(229, 75, 76))),
+            Some(Material::opaque(Color::from_rgb8(22, 1, 244))),
         );
 
         spawn_camera_with_look_and_keyboard_orbit(
@@ -183,27 +188,27 @@ impl Scene {
             SpinAnimation::disabled(),
             Some(Material::opaque(albedo).with_surface(surf_gloss)),
         );
-        let _ = spawn_cube(
+        let _ = spawn_sphere(
             &mut s.world,
-            Vector3::new(2.0, 0.25, 0.6),
+            Vector3::new(2.0, 0.5, 0.6),
             None,
-            Some(Scale::new(0.55, 0.95, 0.55)),
+            Some(Scale::new(0.55, 0.55, 0.55)),
             SpinAnimation::disabled(),
             Some(Material::opaque(albedo).with_surface(surf_matte)),
         );
-        let _ = spawn_cube(
+        let _ = spawn_capsule(
             &mut s.world,
-            Vector3::new(-1.7, 0.28, 0.9),
+            Vector3::new(-1.7, 0.65, 0.9),
             None,
-            Some(Scale::new(0.75, 0.45, 0.9)),
+            Some(Scale::new(0.75, 0.75, 0.75)),
             SpinAnimation::disabled(),
             Some(Material::opaque(albedo).with_surface(surf_metal)),
         );
-        let _ = spawn_cube(
+        let _ = spawn_cylinder(
             &mut s.world,
-            Vector3::new(0.6, 0.22, -2.1),
+            Vector3::new(0.6, 0.5, -2.1),
             None,
-            Some(Scale::new(0.9, 0.55, 0.65)),
+            Some(Scale::new(0.65, 0.55, 0.65)),
             SpinAnimation::disabled(),
             Some(Material::opaque(albedo).with_surface(surf_plastic)),
         );

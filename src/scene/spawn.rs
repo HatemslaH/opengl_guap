@@ -1,7 +1,10 @@
 //! Создание сущностей в [`super::Scene`] (hecs `World`).
 
+use super::capsule::build_capsule_vertex_data;
 use super::cube::build_cube_vertex_data;
+use super::cylinder::build_cylinder_vertex_data;
 use super::grid::build_grid_vertices;
+use super::sphere::build_sphere_vertex_data;
 use crate::ecs::{
     Camera, CameraKeyboardOrbit, CameraLookTarget, Light, Material, Position, RenderMesh, Rotation,
     Scale, SpinAnimation,
@@ -99,6 +102,63 @@ pub fn spawn_cube(
 ) -> Entity {
     let data = build_cube_vertex_data();
     let mesh = Mesh::new_interleaved_pos3_color3_normal3(&data, 36);
+    spawn_mesh_entity(world, position, rotation, scale, spin, material, mesh)
+}
+
+/// Сфера (радиус модели `0.5`, как у куба `±0.5`). См. [`build_sphere_vertex_data`].
+pub fn spawn_sphere(
+    world: &mut World,
+    position: Vector3<f32>,
+    rotation: Option<Rotation>,
+    scale: Option<Scale>,
+    spin: SpinAnimation,
+    material: Option<Material>,
+) -> Entity {
+    let data = build_sphere_vertex_data(0.5, 18, 36);
+    let verts = data.len() / 9;
+    let mesh = Mesh::new_interleaved_pos3_color3_normal3(&data, verts);
+    spawn_mesh_entity(world, position, rotation, scale, spin, material, mesh)
+}
+
+/// Цилиндр вдоль Y: радиус `0.5`, полувысота `0.5`, с дисками на торцах.
+pub fn spawn_cylinder(
+    world: &mut World,
+    position: Vector3<f32>,
+    rotation: Option<Rotation>,
+    scale: Option<Scale>,
+    spin: SpinAnimation,
+    material: Option<Material>,
+) -> Entity {
+    let data = build_cylinder_vertex_data(0.5, 0.5, 36, true);
+    let verts = data.len() / 9;
+    let mesh = Mesh::new_interleaved_pos3_color3_normal3(&data, verts);
+    spawn_mesh_entity(world, position, rotation, scale, spin, material, mesh)
+}
+
+/// Капсула вдоль Y: радиус `0.35`, половина длины ствола `0.3`.
+pub fn spawn_capsule(
+    world: &mut World,
+    position: Vector3<f32>,
+    rotation: Option<Rotation>,
+    scale: Option<Scale>,
+    spin: SpinAnimation,
+    material: Option<Material>,
+) -> Entity {
+    let data = build_capsule_vertex_data(0.35, 0.3, 8, 28, 28);
+    let verts = data.len() / 9;
+    let mesh = Mesh::new_interleaved_pos3_color3_normal3(&data, verts);
+    spawn_mesh_entity(world, position, rotation, scale, spin, material, mesh)
+}
+
+fn spawn_mesh_entity(
+    world: &mut World,
+    position: Vector3<f32>,
+    rotation: Option<Rotation>,
+    scale: Option<Scale>,
+    spin: SpinAnimation,
+    material: Option<Material>,
+    mesh: Mesh,
+) -> Entity {
     let pos = Position { position };
     let rot = rotation.unwrap_or_default();
     let scale = scale.unwrap_or_default();
