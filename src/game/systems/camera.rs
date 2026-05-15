@@ -4,9 +4,10 @@ use crate::engine::ecs::components::Position;
 use crate::engine::graphics::{
     camera_eye_for_look_at_target, camera_yaw_pitch_deg_from_look_direction,
 };
+use crate::engine::input::action::ActionState;
 use crate::game::components::CameraKeyboardOrbit;
 use crate::game::components::CameraLookTarget;
-use crate::game::components::KeyboardOrbitKeys;
+use crate::game::input::action::GameAction;
 use cgmath::{InnerSpace, Vector3};
 use hecs::{Entity, World};
 
@@ -14,7 +15,7 @@ use hecs::{Entity, World};
 /// moves the eye around the target on the sphere by keys from `keys` (see [`KeyboardOrbitKeys`]).
 ///
 /// Call **before** [`camera_look_at_system`], to then recalculate [`Rotation`].
-pub fn camera_keyboard_orbit_system(world: &mut World, keys: &KeyboardOrbitKeys, dt: f32) {
+pub fn camera_keyboard_orbit_system(world: &mut World, actions: &ActionState<GameAction>, dt: f32) {
     if dt <= 0.0 {
         return;
     }
@@ -55,16 +56,16 @@ pub fn camera_keyboard_orbit_system(world: &mut World, keys: &KeyboardOrbitKeys,
             continue;
         }
 
-        if keys.right {
+        if actions.is_active(GameAction::MoveRight) {
             orbit.yaw_deg -= orbit.yaw_speed_deg_per_sec * dt;
         }
-        if keys.left {
+        if actions.is_active(GameAction::MoveLeft) {
             orbit.yaw_deg += orbit.yaw_speed_deg_per_sec * dt;
         }
-        if keys.up {
+        if actions.is_active(GameAction::MoveForward) {
             orbit.pitch_deg -= orbit.pitch_speed_deg_per_sec * dt;
         }
-        if keys.down {
+        if actions.is_active(GameAction::MoveBackward) {
             orbit.pitch_deg += orbit.pitch_speed_deg_per_sec * dt;
         }
         orbit.pitch_deg = orbit

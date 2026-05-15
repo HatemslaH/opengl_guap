@@ -5,6 +5,7 @@ pub mod position;
 pub mod render_mesh;
 pub mod rotation;
 pub mod scale;
+pub mod velocity;
 
 pub use camera::Camera;
 pub use light::{Light, LightKind};
@@ -13,3 +14,4 @@ pub use position::Position;
 pub use render_mesh::RenderMesh;
 pub use rotation::Rotation;
 pub use scale::Scale;
+pub use velocity::Velocity;

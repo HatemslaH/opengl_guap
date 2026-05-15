@@ -2,12 +2,17 @@
 //!
 //! Here we don't add entity components — only window events and system order.
 
-use crate::engine::ecs::systems::render_mesh_system;
+use crate::engine::ecs::systems::{physics_system, render_mesh_system};
 use crate::engine::graphics::{FpsOverlay, ShaderProgram, enable_depth_test};
+use crate::engine::input::action::ActionMap;
+use crate::engine::input::raw::RawInputState;
 use crate::engine::scene::Scene;
-use crate::game::components::{KeyboardOrbitKeys, KeyboardSceneRootKeys};
-use crate::game::scenes::demo2::build_demo2_default;
-use crate::game::systems::{camera_keyboard_orbit_system, camera_look_at_system};
+use crate::game::components::camera_follow_system;
+use crate::game::input::action::GameAction;
+use crate::game::scenes::demo3::build_demo3;
+use crate::game::systems::{
+    camera_keyboard_orbit_system, camera_look_at_system, player_movement_system,
+};
 use glutin::config::ConfigTemplateBuilder;
 use glutin::context::{ContextAttributesBuilder, PossiblyCurrentContext};
 use glutin::display::GetGlDisplay;
@@ -21,7 +26,7 @@ use std::time::Instant;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
-use winit::keyboard::{KeyCode, PhysicalKey};
+use winit::keyboard::PhysicalKey;
 use winit::window::{Window, WindowId};
 
 pub struct GlutinApp {
@@ -33,20 +38,20 @@ pub struct GlutinApp {
     scene: Option<Scene>,
     /// Moment of the end of the previous frame (for `dt` animation and FPS).
     last_frame_instant: Option<Instant>,
-    orbit_keys: KeyboardOrbitKeys,
-    scene_keys: KeyboardSceneRootKeys,
+    raw_input: RawInputState,
+    game_action_map: ActionMap<GameAction>,
     /// Rotation of all meshes around the world axis Y (degrees); light sources are stationary in the world.
     scene_root_yaw_deg: f32,
 }
 
 impl Default for GlutinApp {
     fn default() -> Self {
-        Self::new()
+        Self::new(ActionMap::default())
     }
 }
 
 impl GlutinApp {
-    pub fn new() -> Self {
+    pub fn new(game_action_map: ActionMap<GameAction>) -> Self {
         Self {
             window: None,
             gl_context: None,
@@ -55,8 +60,8 @@ impl GlutinApp {
             fps_overlay: None,
             scene: None,
             last_frame_instant: None,
-            orbit_keys: KeyboardOrbitKeys::default(),
-            scene_keys: KeyboardSceneRootKeys::default(),
+            raw_input: RawInputState::default(),
+            game_action_map,
             scene_root_yaw_deg: 0.0,
         }
     }
@@ -124,7 +129,7 @@ impl ApplicationHandler for GlutinApp {
 
         let shader = ShaderProgram::new_colored_mesh();
         enable_depth_test();
-        let scene = build_demo2_default();
+        let scene = build_demo3();
         let fps_overlay = FpsOverlay::new();
 
         self.gl_context = Some(gl_context);
@@ -163,14 +168,19 @@ impl ApplicationHandler for GlutinApp {
                 let aspect = w_px as f32 / h_px as f32;
 
                 if let (Some(shader), Some(scene)) = (&self.shader, &mut self.scene) {
-                    camera_keyboard_orbit_system(&mut scene.world, &self.orbit_keys, dt);
+                    let actions = self.game_action_map.resolve(&self.raw_input);
+
+                    // camera_keyboard_orbit_system(&mut scene.world, &actions, dt);
+                    camera_follow_system(&mut scene.world);
                     camera_look_at_system(&mut scene.world);
+                    player_movement_system(&mut scene.world, &actions, dt);
+                    physics_system(&mut scene.world, dt);
 
                     const SCENE_YAW_DEG_PER_SEC: f32 = 52.0;
-                    if self.scene_keys.bracket_left {
+                    if actions.is_active(GameAction::RotateLeft) {
                         self.scene_root_yaw_deg -= SCENE_YAW_DEG_PER_SEC * dt;
                     }
-                    if self.scene_keys.bracket_right {
+                    if actions.is_active(GameAction::RotateRight) {
                         self.scene_root_yaw_deg += SCENE_YAW_DEG_PER_SEC * dt;
                     }
 
@@ -195,24 +205,16 @@ impl ApplicationHandler for GlutinApp {
             }
             WindowEvent::Focused(focused) => {
                 if !focused {
-                    self.orbit_keys = KeyboardOrbitKeys::default();
-                    self.scene_keys = KeyboardSceneRootKeys::default();
+                    self.raw_input = RawInputState::default();
+                    self.game_action_map = ActionMap::default();
                     self.last_frame_instant = None;
                 }
             }
 
             WindowEvent::KeyboardInput { event, .. } => {
-                let pressed = event.state == ElementState::Pressed;
                 if let PhysicalKey::Code(code) = event.physical_key {
-                    match code {
-                        KeyCode::KeyD => self.orbit_keys.right = pressed,
-                        KeyCode::KeyA => self.orbit_keys.left = pressed,
-                        KeyCode::KeyW => self.orbit_keys.up = pressed,
-                        KeyCode::KeyS => self.orbit_keys.down = pressed,
-                        KeyCode::BracketLeft => self.scene_keys.bracket_left = pressed,
-                        KeyCode::BracketRight => self.scene_keys.bracket_right = pressed,
-                        _ => {}
-                    }
+                    let pressed = event.state == ElementState::Pressed;
+                    self.raw_input.set_key(code, pressed);
                 }
             }
 
