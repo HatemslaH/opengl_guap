@@ -2,11 +2,12 @@
 //!
 //! Here we don't add entity components — only window events and system order.
 
-use crate::ecs::systems::render_mesh_system;
+use crate::engine::ecs::systems::render_mesh_system;
+use crate::engine::graphics::{FpsOverlay, ShaderProgram, enable_depth_test};
+use crate::engine::scene::Scene;
 use crate::game::components::{KeyboardOrbitKeys, KeyboardSceneRootKeys};
+use crate::game::scenes::demo1::build_demo1;
 use crate::game::systems::{camera_keyboard_orbit_system, camera_look_at_system};
-use crate::graphics::{FpsOverlay, ShaderProgram, enable_depth_test};
-use crate::scene::Scene;
 use glutin::config::ConfigTemplateBuilder;
 use glutin::context::{ContextAttributesBuilder, PossiblyCurrentContext};
 use glutin::display::GetGlDisplay;
@@ -123,7 +124,7 @@ impl ApplicationHandler for GlutinApp {
 
         let shader = ShaderProgram::new_colored_mesh();
         enable_depth_test();
-        let scene = Scene::with_demo1();
+        let scene = build_demo1();
         let fps_overlay = FpsOverlay::new();
 
         self.gl_context = Some(gl_context);

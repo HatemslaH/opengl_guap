@@ -1,4 +1,4 @@
-use crate::graphics::Color;
+use crate::engine::graphics::Color;
 
 /// Reflection parameters (Blinn–Phong) on top of the base [`Material::color`].
 #[derive(Clone, Copy, Debug, PartialEq)]

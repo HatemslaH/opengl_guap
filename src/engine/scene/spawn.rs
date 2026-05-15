@@ -1,13 +1,14 @@
 //! Creation of entities in [`super::Scene`] (hecs `World`).
 
-use super::capsule::build_capsule_vertex_data;
-use super::cube::build_cube_vertex_data;
-use super::cylinder::build_cylinder_vertex_data;
-use super::grid::build_grid_vertices;
-use super::sphere::build_sphere_vertex_data;
-use crate::ecs::{Camera, Light, Material, Position, RenderMesh, Rotation, Scale};
+use crate::engine::{
+    ecs::{Camera, Light, Material, Position, RenderMesh, Rotation, Scale},
+    graphics::{Mesh, MeshTopology},
+    scene::primitives::{
+        build_capsule_vertex_data, build_cube_vertex_data, build_cylinder_vertex_data,
+        build_grid_vertices, build_sphere_vertex_data,
+    },
+};
 use crate::game::components::{CameraKeyboardOrbit, CameraLookTarget};
-use crate::graphics::{Mesh, MeshTopology};
 use hecs::{Entity, World};
 
 /// Camera: [`Position`] (eye), [`Rotation`] (orientation in degrees, field `xyz`), [`Camera`] (FOV, near/far). Without mesh — not rendered.

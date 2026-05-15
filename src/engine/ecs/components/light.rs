@@ -1,6 +1,6 @@
 use cgmath::Vector3;
 
-use crate::graphics::Color;
+use crate::engine::graphics::Color;
 
 /// Type of light source; later you can add `Spot`, `Area` and etc.
 #[derive(Clone, Copy, Debug, PartialEq)]

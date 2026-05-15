@@ -1,0 +1,121 @@
+use crate::engine::ecs::components::{
+    Camera, Light, LightKind, Material, Position, Scale, SurfaceLighting,
+};
+use crate::engine::graphics::Color;
+use crate::engine::scene::{
+    Scene, spawn_camera_with_look_and_keyboard_orbit, spawn_capsule, spawn_coordinate_grid,
+    spawn_cube, spawn_cylinder, spawn_point_light, spawn_sphere,
+};
+use crate::game::components::{CameraKeyboardOrbit, CameraLookTarget};
+
+pub fn build_demo1() -> Scene {
+    let mut s = Scene::new();
+    spawn_coordinate_grid(&mut s.world, 8.0, 1.0);
+
+    // Три точечных источника: разные позиции и цвета.
+    spawn_point_light(
+        &mut s.world,
+        Position::new(3.0, 2.4, 1.2),
+        Light::new(
+            LightKind::point_default_attenuation(),
+            Color::from_rgb8(255, 195, 150),
+            1.25,
+        ),
+    );
+    spawn_point_light(
+        &mut s.world,
+        Position::new(-2.8, 1.3, -0.8),
+        Light::new(
+            LightKind::point_default_attenuation(),
+            Color::from_rgb8(110, 200, 255),
+            1.1,
+        ),
+    );
+    spawn_point_light(
+        &mut s.world,
+        Position::new(0.2, 0.9, -3.2),
+        Light::new(
+            LightKind::point_default_attenuation(),
+            Color::from_rgb8(210, 130, 255),
+            1.0,
+        ),
+    );
+
+    let albedo = Color::from_rgb8(208, 208, 218);
+
+    let surf_gloss = SurfaceLighting {
+        ambient: 0.1,
+        diffuse: 0.92,
+        specular_color: Color::new(1.0, 1.0, 1.0),
+        shininess: 140.0,
+    };
+    let surf_matte = SurfaceLighting {
+        ambient: 0.26,
+        diffuse: 0.52,
+        specular_color: Color::new(0.7, 0.72, 0.75),
+        shininess: 14.0,
+    };
+    let surf_metal = SurfaceLighting {
+        ambient: 0.09,
+        diffuse: 0.58,
+        specular_color: Color::new(0.82, 0.88, 1.0),
+        shininess: 88.0,
+    };
+    let surf_plastic = SurfaceLighting {
+        ambient: 0.15,
+        diffuse: 0.85,
+        specular_color: Color::new(1.0, 0.96, 0.88),
+        shininess: 42.0,
+    };
+    let surf_soft = SurfaceLighting {
+        ambient: 0.2,
+        diffuse: 0.68,
+        specular_color: Color::new(0.92, 0.98, 1.0),
+        shininess: 28.0,
+    };
+
+    let cube = spawn_cube(
+        &mut s.world,
+        Position::new(0.0, 0.35, 0.0),
+        None,
+        Some(Scale::new(1.15, 0.7, 1.15)),
+        Some(Material::opaque(albedo).with_surface(surf_gloss)),
+    );
+    let _ = spawn_sphere(
+        &mut s.world,
+        Position::new(2.0, 0.5, 0.6),
+        None,
+        Some(Scale::new(0.55, 0.55, 0.55)),
+        Some(Material::opaque(albedo).with_surface(surf_matte)),
+    );
+    let _ = spawn_capsule(
+        &mut s.world,
+        Position::new(-1.7, 0.65, 0.9),
+        None,
+        Some(Scale::new(0.75, 0.75, 0.75)),
+        Some(Material::opaque(albedo).with_surface(surf_metal)),
+    );
+    let _ = spawn_cylinder(
+        &mut s.world,
+        Position::new(0.6, 0.5, -2.1),
+        None,
+        Some(Scale::new(0.65, 0.55, 0.65)),
+        Some(Material::opaque(albedo).with_surface(surf_plastic)),
+    );
+    let _ = spawn_cube(
+        &mut s.world,
+        Position::new(-1.2, 0.32, -1.6),
+        None,
+        Some(Scale::new(0.5, 0.85, 0.5)),
+        Some(Material::opaque(albedo).with_surface(surf_soft)),
+    );
+
+    spawn_camera_with_look_and_keyboard_orbit(
+        &mut s.world,
+        Position::new(-2.2, 2.4, 3.0),
+        Camera::new(88.0, 0.1, 100.0),
+        CameraLookTarget::Entity(cube),
+        CameraKeyboardOrbit::default(),
+    );
+    s
+}

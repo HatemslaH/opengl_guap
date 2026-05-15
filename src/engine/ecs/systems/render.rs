@@ -1,7 +1,7 @@
 use cgmath::{Matrix4, Rad, Vector3, Vector4};
 use hecs::{Entity, World};
 
-use crate::{
+use crate::engine::{
     ecs::{Camera, Light, LightKind, Material, Position, RenderMesh, Rotation, Scale},
     graphics::{
         MAX_DIRECTIONAL_LIGHTS, MAX_POINT_LIGHTS, MeshTopology, ShaderProgram,

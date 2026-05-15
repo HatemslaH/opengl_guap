@@ -1,10 +1,12 @@
-use crate::ecs::Rotation;
-use crate::ecs::components::Camera;
-use crate::ecs::components::Position;
+use crate::engine::ecs::Rotation;
+use crate::engine::ecs::components::Camera;
+use crate::engine::ecs::components::Position;
+use crate::engine::graphics::{
+    camera_eye_for_look_at_target, camera_yaw_pitch_deg_from_look_direction,
+};
 use crate::game::components::CameraKeyboardOrbit;
 use crate::game::components::CameraLookTarget;
 use crate::game::components::KeyboardOrbitKeys;
-use crate::graphics::{camera_eye_for_look_at_target, camera_yaw_pitch_deg_from_look_direction};
 use cgmath::{InnerSpace, Vector3};
 use hecs::{Entity, World};
 

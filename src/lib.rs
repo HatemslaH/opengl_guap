@@ -4,10 +4,8 @@
 //! low-level GL in [`graphics`], ECS and entities in [`ecs`] and [`scene`].
 
 pub mod app;
-pub mod ecs;
+pub mod engine;
 pub mod game;
-pub mod graphics;
-pub mod scene;
 
 /// Run the event loop and render. Errors during initialization panic with a Russian message (educational code).
 pub fn run() {

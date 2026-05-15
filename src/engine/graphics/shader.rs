@@ -1,6 +1,6 @@
 //! Compilation and linking GLSL, working with uniform.
 
-use crate::graphics::math::{
+use crate::engine::graphics::math::{
     matrix3_column_major, matrix4_column_major, normal_matrix3_from_model,
 };
 use cgmath::{Matrix4, Vector3};
