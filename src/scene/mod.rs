@@ -86,7 +86,30 @@ impl Scene {
         }
     }
 
-    pub fn with_demo() -> Self {
+    pub fn with_demo0() -> Self {
+        let mut s = Self::new();
+
+        let cube = spawn_cube(
+            &mut s.world,
+            Vector3::new(0.0, 0.0, 0.0),
+            None,
+            Some(Scale::new(1.0, 1.0, 1.0)),
+            SpinAnimation::disabled(),
+            Some(Material::opaque(Color::from_rgb8(229, 75, 76))),
+        );
+
+        spawn_camera_with_look_and_keyboard_orbit(
+            &mut s.world,
+            Vector3::new(-2.2, 2.4, 3.0),
+            Camera::new(88.0, 0.1, 100.0),
+            CameraLookTarget::Entity(cube),
+            CameraKeyboardOrbit::default(),
+        );
+
+        s
+    }
+
+    pub fn with_demo1() -> Self {
         let mut s = Self::new();
         spawn_coordinate_grid(&mut s.world, 8.0, 1.0);
 

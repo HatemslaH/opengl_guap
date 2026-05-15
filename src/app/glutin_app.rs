@@ -124,7 +124,7 @@ impl ApplicationHandler for GlutinApp {
 
         let shader = ShaderProgram::new_colored_mesh();
         enable_depth_test();
-        let scene = Scene::with_demo();
+        let scene = Scene::with_demo0();
         let fps_overlay = FpsOverlay::new();
 
         self.gl_context = Some(gl_context);
