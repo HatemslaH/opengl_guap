@@ -6,7 +6,7 @@ use crate::engine::ecs::systems::render_mesh_system;
 use crate::engine::graphics::{FpsOverlay, ShaderProgram, enable_depth_test};
 use crate::engine::scene::Scene;
 use crate::game::components::{KeyboardOrbitKeys, KeyboardSceneRootKeys};
-use crate::game::scenes::demo1::build_demo1;
+use crate::game::scenes::demo2::build_demo2_default;
 use crate::game::systems::{camera_keyboard_orbit_system, camera_look_at_system};
 use glutin::config::ConfigTemplateBuilder;
 use glutin::context::{ContextAttributesBuilder, PossiblyCurrentContext};
@@ -124,7 +124,7 @@ impl ApplicationHandler for GlutinApp {
 
         let shader = ShaderProgram::new_colored_mesh();
         enable_depth_test();
-        let scene = build_demo1();
+        let scene = build_demo2_default();
         let fps_overlay = FpsOverlay::new();
 
         self.gl_context = Some(gl_context);
