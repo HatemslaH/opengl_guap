@@ -1,12 +1,14 @@
+use std::sync::Arc;
+
 use cgmath::{Matrix4, Rad, Vector3, Vector4};
 use hecs::{Entity, World};
 
 use crate::engine::{
     ecs::{Camera, Light, LightKind, Material, Position, RenderMesh, Rotation, Scale},
     graphics::{
-        MAX_DIRECTIONAL_LIGHTS, MAX_POINT_LIGHTS, MeshTopology, SceneRenderStats, ShaderProgram,
-        camera_view_projection_matrix, model_matrix, set_opaque_depth_blend,
-        set_transparent_depth_blend, view_projection_matrix,
+        InstanceData, MAX_DIRECTIONAL_LIGHTS, MAX_POINT_LIGHTS, Mesh, MeshTopology,
+        SceneRenderStats, ShaderProgram, camera_view_projection_matrix, model_matrix,
+        set_opaque_depth_blend, set_transparent_depth_blend, view_projection_matrix,
     },
 };
 
@@ -28,7 +30,7 @@ use crate::engine::{
 /// Meshes are multiplied on the left by a rotation `R_y(scene_root_yaw_deg)` around the origin:
 /// **scene objects** rotate, the world positions of the light sources in the shader remain stationary.
 ///
-/// Returns draw statistics (one entry per [`crate::engine::graphics::Mesh::draw`] / `glDrawArrays`).
+/// Identical [`Mesh`] + same [`Material`] are batched into one `glDrawArraysInstanced` call.
 pub fn render_mesh_system(
     world: &mut World,
     shader: &ShaderProgram,
@@ -61,6 +63,7 @@ pub fn render_mesh_system(
     let lights = collect_lights(world);
 
     shader.use_program();
+    shader.set_vp(&vp);
     shader.set_camera_pos(camera_eye);
     lights.upload(shader);
 
@@ -68,6 +71,7 @@ pub fn render_mesh_system(
 
     // --- Lines: vertex color only, no material ---
     shader.set_vertex_color_mode(true);
+    let mut line_batches: Vec<(Arc<Mesh>, Vec<InstanceData>)> = Vec::new();
     for (_, (transform, rot, scale, render)) in
         &mut world.query::<(&Position, &Rotation, &Scale, &RenderMesh)>()
     {
@@ -76,14 +80,24 @@ pub fn render_mesh_system(
         }
         let model_local = model_matrix(transform.position, rot.xyz, scale.xyz);
         let model = scene_root * model_local;
-        let mvp = vp * model;
-        shader.set_model_normal_mvp(&model, &mvp);
-        render.mesh.draw(render.topology);
+        let inst = InstanceData::from_world_model(model);
+        if let Some((_, instances)) = line_batches
+            .iter_mut()
+            .find(|(m, _)| Arc::ptr_eq(m, &render.mesh))
+        {
+            instances.push(inst);
+        } else {
+            line_batches.push((Arc::clone(&render.mesh), vec![inst]));
+        }
+    }
+    for (mesh, instances) in line_batches {
+        mesh.draw_instanced(MeshTopology::Lines, &instances);
         stats.record_line_draw();
     }
 
     // --- Opaque triangles (with material) ---
     shader.set_vertex_color_mode(false);
+    let mut opaque_batches: Vec<(Arc<Mesh>, Material, Vec<InstanceData>)> = Vec::new();
     for (_, (transform, rot, scale, render, mat)) in
         &mut world.query::<(&Position, &Rotation, &Scale, &RenderMesh, &Material)>()
     {
@@ -95,8 +109,16 @@ pub fn render_mesh_system(
         }
         let model_local = model_matrix(transform.position, rot.xyz, scale.xyz);
         let model = scene_root * model_local;
-        let mvp = vp * model;
-        shader.set_model_normal_mvp(&model, &mvp);
+        let inst = InstanceData::from_world_model(model);
+        if let Some((_, _, instances)) = opaque_batches.iter_mut().find(|(m, m2, _)| {
+            Arc::ptr_eq(m, &render.mesh) && *m2 == *mat
+        }) {
+            instances.push(inst);
+        } else {
+            opaque_batches.push((Arc::clone(&render.mesh), *mat, vec![inst]));
+        }
+    }
+    for (mesh, mat, instances) in opaque_batches {
         shader.set_material_rgba(mat.color.r, mat.color.g, mat.color.b, mat.opacity);
         shader.set_surface_lighting(
             mat.surface.ambient,
@@ -106,7 +128,7 @@ pub fn render_mesh_system(
             mat.surface.specular_color.b,
             mat.surface.shininess,
         );
-        render.mesh.draw(render.topology);
+        mesh.draw_instanced(MeshTopology::Triangles, &instances);
         stats.record_triangle_draw(false);
     }
 
@@ -134,30 +156,58 @@ pub fn render_mesh_system(
 
     transparent.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
 
-    for (_, e) in transparent {
-        let Ok(mut q) =
-            world.query_one::<(&Position, &Rotation, &Scale, &RenderMesh, &Material)>(e)
+    let mut i = 0usize;
+    while i < transparent.len() {
+        let e0 = transparent[i].1;
+        let Ok(mut q0) = world.query_one::<(&Position, &Rotation, &Scale, &RenderMesh, &Material)>(e0)
         else {
+            i += 1;
             continue;
         };
-        let Some((transform, rot, scale, render, mat)) = q.get() else {
+        let Some((transform0, rot0, scale0, render0, mat0)) = q0.get() else {
+            i += 1;
             continue;
         };
-        let model_local = model_matrix(transform.position, rot.xyz, scale.xyz);
+        let mesh0 = Arc::clone(&render0.mesh);
+        let mat0 = *mat0;
+        let mut instances = Vec::new();
+        let model_local = model_matrix(transform0.position, rot0.xyz, scale0.xyz);
         let model = scene_root * model_local;
-        let mvp = vp * model;
-        shader.set_model_normal_mvp(&model, &mvp);
-        shader.set_material_rgba(mat.color.r, mat.color.g, mat.color.b, mat.opacity);
+        instances.push(InstanceData::from_world_model(model));
+
+        let mut j = i + 1;
+        while j < transparent.len() {
+            let e = transparent[j].1;
+            let Ok(mut q) =
+                world.query_one::<(&Position, &Rotation, &Scale, &RenderMesh, &Material)>(e)
+            else {
+                break;
+            };
+            let Some((transform, rot, scale, render, mat)) = q.get() else {
+                break;
+            };
+            if !Arc::ptr_eq(&render.mesh, &mesh0) || *mat != mat0 {
+                break;
+            }
+            let model_local = model_matrix(transform.position, rot.xyz, scale.xyz);
+            let model = scene_root * model_local;
+            instances.push(InstanceData::from_world_model(model));
+            j += 1;
+        }
+
+        shader.set_material_rgba(mat0.color.r, mat0.color.g, mat0.color.b, mat0.opacity);
         shader.set_surface_lighting(
-            mat.surface.ambient,
-            mat.surface.diffuse,
-            mat.surface.specular_color.r,
-            mat.surface.specular_color.g,
-            mat.surface.specular_color.b,
-            mat.surface.shininess,
+            mat0.surface.ambient,
+            mat0.surface.diffuse,
+            mat0.surface.specular_color.r,
+            mat0.surface.specular_color.g,
+            mat0.surface.specular_color.b,
+            mat0.surface.shininess,
         );
-        render.mesh.draw(render.topology);
+        mesh0.draw_instanced(MeshTopology::Triangles, &instances);
         stats.record_triangle_draw(true);
+
+        i = j;
     }
 
     set_opaque_depth_blend();

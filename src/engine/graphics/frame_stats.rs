@@ -1,4 +1,5 @@
-//! Per-frame GPU-oriented counters filled by the renderer (CPU-side; each [`gl::DrawArrays`] ≈ one draw).
+//! Per-frame GPU-oriented counters filled by the renderer (CPU-side; each [`gl::DrawArrays`] /
+//! [`gl::DrawArraysInstanced`] ≈ one draw).
 
 /// Counts from [`crate::engine::ecs::systems::render::render_mesh_system`].
 #[derive(Clone, Copy, Default, Debug)]

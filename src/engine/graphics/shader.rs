@@ -1,8 +1,6 @@
 //! Compilation and linking GLSL, working with uniform.
 
-use crate::engine::graphics::math::{
-    matrix3_column_major, matrix4_column_major, normal_matrix3_from_model,
-};
+use crate::engine::graphics::math::matrix4_column_major;
 use cgmath::{Matrix4, Vector3};
 use std::ffi::CString;
 
@@ -16,18 +14,25 @@ const VERT_SRC: &str = r#"
     layout (location = 0) in vec3 aPos;
     layout (location = 1) in vec3 aColor;
     layout (location = 2) in vec3 aNormal;
+    layout (location = 3) in vec4 iModel0;
+    layout (location = 4) in vec4 iModel1;
+    layout (location = 5) in vec4 iModel2;
+    layout (location = 6) in vec4 iModel3;
+    layout (location = 7) in vec3 iNorm0;
+    layout (location = 8) in vec3 iNorm1;
+    layout (location = 9) in vec3 iNorm2;
     out vec3 vColor;
     out vec3 vWorldPos;
     out vec3 vNormal;
-    uniform mat4 uMVP;
-    uniform mat4 uModel;
-    uniform mat3 uNormalMat;
+    uniform mat4 uVP;
     void main()
     {
-        vec4 world = uModel * vec4(aPos, 1.0);
+        mat4 iModel = mat4(iModel0, iModel1, iModel2, iModel3);
+        mat3 iNormalMat = mat3(iNorm0, iNorm1, iNorm2);
+        vec4 world = iModel * vec4(aPos, 1.0);
         vWorldPos = world.xyz;
-        vNormal = normalize(uNormalMat * aNormal);
-        gl_Position = uMVP * vec4(aPos, 1.0);
+        vNormal = normalize(iNormalMat * aNormal);
+        gl_Position = uVP * world;
         vColor = aColor;
     }
 "#;
@@ -100,9 +105,7 @@ fn uniform_vec3_array(program: u32, base: &str, len: usize) -> Vec<i32> {
 /// Linked OpenGL program and known uniform locations.
 pub struct ShaderProgram {
     id: u32,
-    mvp_location: i32,
-    model_location: i32,
-    normal_mat_location: i32,
+    vp_location: i32,
     mat_rgb_location: i32,
     mat_alpha_location: i32,
     use_vertex_color_location: i32,
@@ -160,9 +163,7 @@ impl ShaderProgram {
 
             Self {
                 id,
-                mvp_location: uniform_location(id, "uMVP"),
-                model_location: uniform_location(id, "uModel"),
-                normal_mat_location: uniform_location(id, "uNormalMat"),
+                vp_location: uniform_location(id, "uVP"),
                 mat_rgb_location: uniform_location(id, "uMatRgb"),
                 mat_alpha_location: uniform_location(id, "uMatAlpha"),
                 use_vertex_color_location: uniform_location(id, "uUseVertexColor"),
@@ -187,45 +188,17 @@ impl ShaderProgram {
         self.id
     }
 
-    #[inline]
-    pub fn mvp_location(&self) -> i32 {
-        self.mvp_location
-    }
-
     pub fn use_program(&self) {
         unsafe {
             gl::UseProgram(self.id);
         }
     }
 
-    /// Model matrix, normal matrix (3×3) and `proj * view * model` for `gl_Position`.
-    pub fn set_model_normal_mvp(&self, model: &Matrix4<f32>, mvp: &Matrix4<f32>) {
-        let nm = normal_matrix3_from_model(model);
-        let cols3 = matrix3_column_major(&nm);
-        let cols_model = matrix4_column_major(model);
-        let cols_mvp = matrix4_column_major(mvp);
+    /// View×projection matrix (`proj * view`); per-instance model is in vertex attributes.
+    pub fn set_vp(&self, vp: &Matrix4<f32>) {
+        let cols = matrix4_column_major(vp);
         unsafe {
-            gl::UniformMatrix4fv(self.model_location, 1, gl::FALSE, cols_model.as_ptr());
-            gl::UniformMatrix3fv(self.normal_mat_location, 1, gl::FALSE, cols3.as_ptr());
-            gl::UniformMatrix4fv(self.mvp_location, 1, gl::FALSE, cols_mvp.as_ptr());
-        }
-    }
-
-    /// Only `uMVP` (if the model and normals are already set).
-    pub fn set_mvp(&self, mvp: &Matrix4<f32>) {
-        let cols = matrix4_column_major(mvp);
-        unsafe {
-            gl::UniformMatrix4fv(self.mvp_location, 1, gl::FALSE, cols.as_ptr());
-        }
-    }
-
-    pub fn set_model_and_normal(&self, model: &Matrix4<f32>) {
-        let nm = normal_matrix3_from_model(model);
-        let cols3 = matrix3_column_major(&nm);
-        let cols_model = matrix4_column_major(model);
-        unsafe {
-            gl::UniformMatrix4fv(self.model_location, 1, gl::FALSE, cols_model.as_ptr());
-            gl::UniformMatrix3fv(self.normal_mat_location, 1, gl::FALSE, cols3.as_ptr());
+            gl::UniformMatrix4fv(self.vp_location, 1, gl::FALSE, cols.as_ptr());
         }
     }
 

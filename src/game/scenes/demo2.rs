@@ -3,12 +3,15 @@
 //! Tweak [`DEMO2_SPHERES`], [`DEMO2_GRID_SPACING`], [`DEMO2_SPHERE_SCALE`] or call [`build_demo2`]
 //! with custom parameters from `GlutinApp` / tests.
 
+use std::sync::Arc;
+
 use cgmath::vec3;
 
 use crate::engine::ecs::components::{Camera, Light, LightKind, Material, Position, Scale};
-use crate::engine::graphics::Color;
+use crate::engine::graphics::{Color, Mesh};
+use crate::engine::scene::primitives::build_sphere_vertex_data;
 use crate::engine::scene::{
-    Scene, spawn_camera_with_look_and_keyboard_orbit, spawn_directional_light, spawn_sphere,
+    Scene, spawn_camera_with_look_and_keyboard_orbit, spawn_directional_light, spawn_mesh_entity,
 };
 use crate::game::components::{CameraKeyboardOrbit, CameraLookTarget};
 
@@ -59,17 +62,22 @@ pub fn build_demo2(sphere_count: usize, grid_spacing: f32, sphere_scale: f32) ->
 
     let y = 0.5 * sphere_scale;
 
+    let sphere_data = build_sphere_vertex_data(0.5, 18, 36);
+    let verts = sphere_data.len() / 9;
+    let sphere_mesh = Arc::new(Mesh::new_interleaved_pos3_color3_normal3(&sphere_data, verts));
+
     for i in 0..sphere_count {
         let ix = i % cols;
         let iz = i / cols;
         let x = (ix as f32 - ox) * grid_spacing;
         let z = (iz as f32 - oz) * grid_spacing;
-        spawn_sphere(
+        spawn_mesh_entity(
             &mut s.world,
             Position::new(x, y, z),
             None,
             Some(scale),
             Some(mat),
+            Arc::clone(&sphere_mesh),
         );
     }
 

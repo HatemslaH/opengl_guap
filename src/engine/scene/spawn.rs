@@ -1,5 +1,7 @@
 //! Creation of entities in [`super::Scene`] (hecs `World`).
 
+use std::sync::Arc;
+
 use crate::engine::{
     ecs::{Camera, Light, Material, Position, RenderMesh, Rotation, Scale},
     graphics::{Mesh, MeshTopology},
@@ -54,7 +56,7 @@ pub fn spawn_coordinate_grid(world: &mut World, half_extent: f32, step: f32) {
     );
     let data = build_grid_vertices(half_extent, step);
     let verts = (data.len() / 6) as usize;
-    let mesh = Mesh::new_interleaved_pos3_color3(&data, verts);
+    let mesh = Arc::new(Mesh::new_interleaved_pos3_color3(&data, verts));
     world.spawn((
         Position::default(),
         Rotation::default(),
@@ -77,7 +79,7 @@ pub fn spawn_cube(
     material: Option<Material>,
 ) -> Entity {
     let data = build_cube_vertex_data();
-    let mesh = Mesh::new_interleaved_pos3_color3_normal3(&data, 36);
+    let mesh = Arc::new(Mesh::new_interleaved_pos3_color3_normal3(&data, 36));
     spawn_mesh_entity(world, position, rotation, scale, material, mesh)
 }
 
@@ -91,7 +93,7 @@ pub fn spawn_sphere(
 ) -> Entity {
     let data = build_sphere_vertex_data(0.5, 18, 36);
     let verts = data.len() / 9;
-    let mesh = Mesh::new_interleaved_pos3_color3_normal3(&data, verts);
+    let mesh = Arc::new(Mesh::new_interleaved_pos3_color3_normal3(&data, verts));
     spawn_mesh_entity(world, position, rotation, scale, material, mesh)
 }
 
@@ -105,7 +107,7 @@ pub fn spawn_cylinder(
 ) -> Entity {
     let data = build_cylinder_vertex_data(0.5, 0.5, 36, true);
     let verts = data.len() / 9;
-    let mesh = Mesh::new_interleaved_pos3_color3_normal3(&data, verts);
+    let mesh = Arc::new(Mesh::new_interleaved_pos3_color3_normal3(&data, verts));
     spawn_mesh_entity(world, position, rotation, scale, material, mesh)
 }
 
@@ -119,17 +121,18 @@ pub fn spawn_capsule(
 ) -> Entity {
     let data = build_capsule_vertex_data(0.35, 0.3, 8, 28, 28);
     let verts = data.len() / 9;
-    let mesh = Mesh::new_interleaved_pos3_color3_normal3(&data, verts);
+    let mesh = Arc::new(Mesh::new_interleaved_pos3_color3_normal3(&data, verts));
     spawn_mesh_entity(world, position, rotation, scale, material, mesh)
 }
 
-fn spawn_mesh_entity(
+/// Spawns a mesh entity with optional [`Material`] (triangles require material to draw).
+pub fn spawn_mesh_entity(
     world: &mut World,
     position: Position,
     rotation: Option<Rotation>,
     scale: Option<Scale>,
     material: Option<Material>,
-    mesh: Mesh,
+    mesh: Arc<Mesh>,
 ) -> Entity {
     let rot = rotation.unwrap_or_default();
     let scale = scale.unwrap_or_default();

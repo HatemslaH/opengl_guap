@@ -15,7 +15,7 @@ pub use crate::engine::ecs::{
 };
 pub use spawn::{
     spawn_camera, spawn_camera_with_look, spawn_camera_with_look_and_keyboard_orbit, spawn_capsule,
-    spawn_coordinate_grid, spawn_cube, spawn_cylinder, spawn_directional_light, spawn_point_light,
-    spawn_sphere,
+    spawn_coordinate_grid, spawn_cube, spawn_cylinder, spawn_directional_light, spawn_mesh_entity,
+    spawn_point_light, spawn_sphere,
 };
 pub use world::Scene;

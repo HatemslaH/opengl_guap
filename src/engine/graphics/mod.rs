@@ -20,6 +20,6 @@ pub use math::{
     camera_yaw_pitch_deg_from_look_direction, matrix3_column_major, matrix4_column_major,
     model_matrix, normal_matrix3_from_model, view_projection_matrix,
 };
-pub use mesh::{Mesh, MeshTopology};
+pub use mesh::{InstanceData, Mesh, MeshTopology};
 pub use render_state::{set_opaque_depth_blend, set_transparent_depth_blend};
 pub use shader::{MAX_DIRECTIONAL_LIGHTS, MAX_POINT_LIGHTS, ShaderProgram};
