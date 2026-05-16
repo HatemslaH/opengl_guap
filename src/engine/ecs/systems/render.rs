@@ -4,7 +4,7 @@ use hecs::{Entity, World};
 use crate::engine::{
     ecs::{Camera, Light, LightKind, Material, Position, RenderMesh, Rotation, Scale},
     graphics::{
-        MAX_DIRECTIONAL_LIGHTS, MAX_POINT_LIGHTS, MeshTopology, ShaderProgram,
+        MAX_DIRECTIONAL_LIGHTS, MAX_POINT_LIGHTS, MeshTopology, SceneRenderStats, ShaderProgram,
         camera_view_projection_matrix, model_matrix, set_opaque_depth_blend,
         set_transparent_depth_blend, view_projection_matrix,
     },
@@ -27,12 +27,15 @@ use crate::engine::{
 ///
 /// Meshes are multiplied on the left by a rotation `R_y(scene_root_yaw_deg)` around the origin:
 /// **scene objects** rotate, the world positions of the light sources in the shader remain stationary.
+///
+/// Returns draw statistics (one entry per [`crate::engine::graphics::Mesh::draw`] / `glDrawArrays`).
 pub fn render_mesh_system(
     world: &mut World,
     shader: &ShaderProgram,
     aspect: f32,
     scene_root_yaw_deg: f32,
-) {
+) -> SceneRenderStats {
+    let mut stats = SceneRenderStats::default();
     let scene_root = Matrix4::from_angle_y(Rad(scene_root_yaw_deg.to_radians()));
     let (vp, camera_eye) = if let Some((_, (pos, rot, cam))) =
         (&mut world.query::<(&Position, &Rotation, &Camera)>())
@@ -76,6 +79,7 @@ pub fn render_mesh_system(
         let mvp = vp * model;
         shader.set_model_normal_mvp(&model, &mvp);
         render.mesh.draw(render.topology);
+        stats.record_line_draw();
     }
 
     // --- Opaque triangles (with material) ---
@@ -103,6 +107,7 @@ pub fn render_mesh_system(
             mat.surface.shininess,
         );
         render.mesh.draw(render.topology);
+        stats.record_triangle_draw(false);
     }
 
     // --- Semi-transparent triangles (from farthest to nearest—draw order is critical without depth write) ---
@@ -152,9 +157,11 @@ pub fn render_mesh_system(
             mat.surface.shininess,
         );
         render.mesh.draw(render.topology);
+        stats.record_triangle_draw(true);
     }
 
     set_opaque_depth_blend();
+    stats
 }
 
 /// Collects up to [`MAX_DIRECTIONAL_LIGHTS`] directional and [`MAX_POINT_LIGHTS`] point light sources.

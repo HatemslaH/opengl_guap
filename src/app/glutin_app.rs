@@ -3,16 +3,15 @@
 //! Here we don't add entity components — only window events and system order.
 
 use crate::engine::ecs::systems::{physics_system, render_mesh_system};
-use crate::engine::graphics::{FpsOverlay, ShaderProgram, enable_depth_test};
+use crate::engine::graphics::{FpsOverlay, FrameHudMetrics, ShaderProgram, enable_depth_test};
 use crate::engine::input::action::ActionMap;
 use crate::engine::input::raw::RawInputState;
 use crate::engine::scene::Scene;
 use crate::game::components::camera_follow_system;
 use crate::game::input::action::GameAction;
+use crate::game::scenes::demo2::{build_demo2, build_demo2_default};
 use crate::game::scenes::demo3::build_demo3;
-use crate::game::systems::{
-    camera_keyboard_orbit_system, camera_look_at_system, player_movement_system,
-};
+use crate::game::systems::{camera_look_at_system, player_movement_system};
 use glutin::config::ConfigTemplateBuilder;
 use glutin::context::{ContextAttributesBuilder, PossiblyCurrentContext};
 use glutin::display::GetGlDisplay;
@@ -42,6 +41,8 @@ pub struct GlutinApp {
     game_action_map: ActionMap<GameAction>,
     /// Rotation of all meshes around the world axis Y (degrees); light sources are stationary in the world.
     scene_root_yaw_deg: f32,
+    /// CPU time for the previous frame's `swap_buffers` (shown on HUD as "swap").
+    last_swap_cpu_ms: f32,
 }
 
 impl Default for GlutinApp {
@@ -63,6 +64,7 @@ impl GlutinApp {
             raw_input: RawInputState::default(),
             game_action_map,
             scene_root_yaw_deg: 0.0,
+            last_swap_cpu_ms: 0.0,
         }
     }
 }
@@ -129,7 +131,7 @@ impl ApplicationHandler for GlutinApp {
 
         let shader = ShaderProgram::new_colored_mesh();
         enable_depth_test();
-        let scene = build_demo3();
+        let scene = build_demo2_default();
         let fps_overlay = FpsOverlay::new();
 
         self.gl_context = Some(gl_context);
@@ -189,14 +191,30 @@ impl ApplicationHandler for GlutinApp {
                         gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
                     }
 
-                    render_mesh_system(&mut scene.world, shader, aspect, self.scene_root_yaw_deg);
+                    let t_scene = Instant::now();
+                    let scene_stats = render_mesh_system(
+                        &mut scene.world,
+                        shader,
+                        aspect,
+                        self.scene_root_yaw_deg,
+                    );
+                    let scene_ms = t_scene.elapsed().as_secs_f32() * 1000.0;
+
+                    let hud = FrameHudMetrics {
+                        dt_secs: dt,
+                        scene_cpu_ms: scene_ms,
+                        last_swap_cpu_ms: self.last_swap_cpu_ms,
+                        scene: scene_stats,
+                    };
                     if let Some(fps) = self.fps_overlay.as_mut() {
-                        fps.draw(w_px, h_px, dt);
+                        fps.draw(w_px, h_px, &hud);
                     }
                 }
 
                 if let (Some(ctx), Some(surface)) = (&self.gl_context, &self.gl_surface) {
+                    let t_swap = Instant::now();
                     surface.swap_buffers(ctx).expect("window buffer swap");
+                    self.last_swap_cpu_ms = t_swap.elapsed().as_secs_f32() * 1000.0;
                 }
 
                 if let Some(w) = &self.window {

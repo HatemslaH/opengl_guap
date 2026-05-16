@@ -5,10 +5,9 @@ use crate::engine::ecs::components::{
 };
 use crate::engine::graphics::Color;
 use crate::engine::scene::{
-    Scene, spawn_camera, spawn_camera_with_look_and_keyboard_orbit, spawn_capsule,
-    spawn_coordinate_grid, spawn_cube, spawn_directional_light,
+    Scene, spawn_camera, spawn_capsule, spawn_coordinate_grid, spawn_cube, spawn_directional_light,
 };
-use crate::game::components::{CameraFollow, CameraKeyboardOrbit, CameraLookTarget, Player};
+use crate::game::components::{CameraFollow, Player};
 
 pub fn build_demo3() -> Scene {
     let mut s = Scene::new();

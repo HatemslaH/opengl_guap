@@ -5,6 +5,7 @@
 pub mod color;
 pub mod depth;
 pub mod fps_overlay;
+pub mod frame_stats;
 pub mod math;
 pub mod mesh;
 pub mod render_state;
@@ -12,7 +13,8 @@ pub mod shader;
 
 pub use color::Color;
 pub use depth::enable_depth_test;
-pub use fps_overlay::FpsOverlay;
+pub use fps_overlay::{FpsOverlay, FrameHudMetrics};
+pub use frame_stats::SceneRenderStats;
 pub use math::{
     camera_eye_for_look_at_target, camera_view_matrix, camera_view_projection_matrix,
     camera_yaw_pitch_deg_from_look_direction, matrix3_column_major, matrix4_column_major,

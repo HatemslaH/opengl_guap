@@ -1,7 +1,21 @@
-//! Text FPS in the left upper corner of the window (NDC, separate GL program).
+//! Debug HUD in the upper-left (NDC, separate GL program): FPS, frame / scene / overlay / present
+//! CPU times (ms), and scene draw-call counts from [`SceneRenderStats`].
 
 use font8x8::{BASIC_FONTS, UnicodeFonts};
 use std::ffi::CString;
+
+use super::frame_stats::SceneRenderStats;
+
+/// Values for one frame, measured in [`crate::app::glutin_app::GlutinApp`] (CPU wall time around GL).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct FrameHudMetrics {
+    pub dt_secs: f32,
+    /// Wall time inside [`crate::engine::ecs::systems::render::render_mesh_system`].
+    pub scene_cpu_ms: f32,
+    /// Wall time for the previous frame's buffer swap (`swap_buffers`), for HUD display.
+    pub last_swap_cpu_ms: f32,
+    pub scene: SceneRenderStats,
+}
 
 const VERT: &str = r#"#version 330 core
 layout (location = 0) in vec2 aPos;
@@ -97,13 +111,44 @@ fn push_quad_pixels(
     }
 }
 
-/// Overlay «FPS …» in the left upper corner; draw after the scene, on top of the frame.
+struct BitmapFontBatch<'a> {
+    scratch: &'a mut Vec<f32>,
+    w: f32,
+    h: f32,
+    scale: f32,
+    gap_px: f32,
+}
+
+impl BitmapFontBatch<'_> {
+    fn append_line(&mut self, text: &str, mut pen_x: f32, pen_y: f32, rgb: [f32; 3]) {
+        let space = BASIC_FONTS.get(' ').expect("space in BASIC_FONTS");
+        for ch in text.chars() {
+            let g = BASIC_FONTS.get(ch).unwrap_or(space);
+            for (row, &byte) in g.iter().enumerate() {
+                for bit in 0..8u32 {
+                    if byte & (1 << bit) != 0 {
+                        let px0 = pen_x + bit as f32 * self.scale;
+                        let py0 = pen_y + row as f32 * self.scale;
+                        let px1 = px0 + self.scale;
+                        let py1 = py0 + self.scale;
+                        push_quad_pixels(self.scratch, (px0, py0, px1, py1), self.w, self.h, rgb);
+                    }
+                }
+            }
+            pen_x += 8.0 * self.scale + self.gap_px;
+        }
+    }
+}
+
+/// Upper-left debug HUD; draw after the scene, on top of the frame.
 pub struct FpsOverlay {
     program: u32,
     vao: u32,
     vbo: u32,
     scratch: Vec<f32>,
     fps_ema: f32,
+    /// Smoothed CPU time for building + drawing this HUD (previous frame's value used while building text).
+    hud_cpu_ms_ema: f32,
 }
 
 #[allow(clippy::new_without_default)]
@@ -135,18 +180,21 @@ impl FpsOverlay {
             program,
             vao,
             vbo,
-            scratch: Vec::with_capacity(12_000),
+            scratch: Vec::with_capacity(64_000),
             fps_ema: -1.0,
+            hud_cpu_ms_ema: -1.0,
         }
     }
 
-    /// Updates the smoothed FPS by `dt_secs` and draws the text on top of the frame.
-    pub fn draw(&mut self, width_px: u32, height_px: u32, dt_secs: f32) {
+    /// Updates smoothed FPS from `hud.dt_secs` and draws several lines of stats.
+    pub fn draw(&mut self, width_px: u32, height_px: u32, hud: &FrameHudMetrics) {
+        let t_total = std::time::Instant::now();
         let w = width_px.max(1) as f32;
         let h = height_px.max(1) as f32;
+        let dt = hud.dt_secs;
 
-        if dt_secs > 1e-7 {
-            let inst = 1.0 / dt_secs;
+        if dt > 1e-7 {
+            let inst = 1.0 / dt;
             self.fps_ema = if self.fps_ema < 0.0 {
                 inst
             } else {
@@ -154,32 +202,40 @@ impl FpsOverlay {
             };
         }
 
-        let text = format!("FPS {:.0}", self.fps_ema.max(0.0));
-        let space = BASIC_FONTS.get(' ').expect("space in BASIC_FONTS");
+        let frame_ms = dt * 1000.0;
+        let s = hud.scene;
+        let hud_label = self.hud_cpu_ms_ema.max(0.0);
+        let line1 = format!(
+            "FPS {:>4.0}  frame {:>6.2}ms  swap {:>5.2}ms",
+            self.fps_ema.max(0.0),
+            frame_ms,
+            hud.last_swap_cpu_ms
+        );
+        let line2 = format!("3D {:>6.2}ms  HUD {:>5.2}ms", hud.scene_cpu_ms, hud_label);
+        let line3 = format!(
+            "draws {:>4} (+1 HUD)  L:{} T:{} A:{}",
+            s.draw_calls, s.lines_drawn, s.opaque_triangles_drawn, s.transparent_triangles_drawn
+        );
 
-        self.scratch.clear();
         let scale = 2.5_f32;
         let gap_px = 2.0_f32;
         let margin = 6.0_f32;
-        let mut pen_x = margin;
-        let pen_y = margin;
-        let rgb = [0.35_f32, 1.0_f32, 0.48_f32];
+        let line_step = 8.0 * scale + 5.0;
+        let rgb_a = [0.35_f32, 1.0_f32, 0.48_f32];
+        let rgb_b = [0.45_f32, 0.88_f32, 1.0_f32];
+        let rgb_c = [1.0_f32, 0.92_f32, 0.35_f32];
 
-        for ch in text.chars() {
-            let g = BASIC_FONTS.get(ch).unwrap_or(space);
-            for (row, &byte) in g.iter().enumerate() {
-                for bit in 0..8u32 {
-                    if byte & (1 << bit) != 0 {
-                        let px0 = pen_x + bit as f32 * scale;
-                        let py0 = pen_y + row as f32 * scale;
-                        let px1 = px0 + scale;
-                        let py1 = py0 + scale;
-                        push_quad_pixels(&mut self.scratch, (px0, py0, px1, py1), w, h, rgb);
-                    }
-                }
-            }
-            pen_x += 8.0 * scale + gap_px;
-        }
+        self.scratch.clear();
+        let mut batch = BitmapFontBatch {
+            scratch: &mut self.scratch,
+            w,
+            h,
+            scale,
+            gap_px,
+        };
+        batch.append_line(&line1, margin, margin, rgb_a);
+        batch.append_line(&line2, margin, margin + line_step, rgb_b);
+        batch.append_line(&line3, margin, margin + 2.0 * line_step, rgb_c);
 
         let n = (self.scratch.len() / 5) as i32;
         if n <= 0 {
@@ -202,6 +258,13 @@ impl FpsOverlay {
             gl::UseProgram(0);
             gl::Enable(gl::DEPTH_TEST);
         }
+
+        let hud_ms = t_total.elapsed().as_secs_f32() * 1000.0;
+        self.hud_cpu_ms_ema = if self.hud_cpu_ms_ema < 0.0 {
+            hud_ms
+        } else {
+            self.hud_cpu_ms_ema * 0.9 + hud_ms * 0.1
+        };
     }
 }
 
